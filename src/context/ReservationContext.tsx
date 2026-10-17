@@ -13,6 +13,7 @@ import {
 } from '../types';
 import {
   TIME_SLOTS,
+  DAY_NAMES,
   getNextSlotTime,
   parseDate,
   formatDate,
@@ -99,6 +100,7 @@ interface ReservationContextType {
   toggleSlotLock: (params: { date?: string; time: string; reason?: string }) => void;
   adjustTickets: (studentId: string, delta: number) => void;
   addRegularSlot: (studentId: string, dayOfWeek: DayOfWeek, time: string) => { success: boolean; error?: string };
+  addRegularSlots: (studentId: string, days: DayOfWeek[], time: string) => { success: boolean; error?: string };
   removeRegularSlot: (studentId: string, dayOfWeek: DayOfWeek, time: string) => void;
   createStudent: (name: string, grade: string, phone: string) => void;
   deleteStudent: (studentId: string) => void;
@@ -887,54 +889,84 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
   );
 
   /**
-   * 원생 정규 수업 추가 (동시간대 최대 4명까지 허용)
+  /**
+   * 원생 정규 수업 복수 요일 일괄 추가 (동시간대 최대 4명까지 허용)
    */
-  const addRegularSlot = useCallback(
-    (studentId: string, dayOfWeek: DayOfWeek, time: string): { success: boolean; error?: string } => {
+  const addRegularSlots = useCallback(
+    (studentId: string, days: DayOfWeek[], time: string): { success: boolean; error?: string } => {
       const student = students.find((s) => s.id === studentId);
       if (!student) return { success: false, error: '학생을 찾을 수 없습니다.' };
+      if (!days || days.length === 0) return { success: false, error: '선택된 요일이 없습니다.' };
 
-      // 본인이 이미 이 요일/시간에 등록되어 있는지 체크
-      const alreadyRegistered = student.regularSlots.some(
-        (slot) => slot.dayOfWeek === dayOfWeek && slot.time === time
-      );
-      if (alreadyRegistered) {
-        return {
-          success: false,
-          error: `${student.name} 학생은 이미 이 시간에 정규 수업이 등록되어 있습니다.`,
-        };
+      // 1. 이미 등록되어 있는 요일이나 정원 초과 요일 검사
+      const duplicateDays: string[] = [];
+      const fullDays: string[] = [];
+      const validDays: DayOfWeek[] = [];
+
+      for (const day of days) {
+        if (student.regularSlots.some((s) => s.dayOfWeek === day && s.time === time)) {
+          duplicateDays.push(`${DAY_NAMES[day]}요일`);
+          continue;
+        }
+        const currentCount = students.filter((s) =>
+          s.regularSlots.some((slot) => slot.dayOfWeek === day && slot.time === time)
+        ).length;
+        if (currentCount >= 4) {
+          fullDays.push(`${DAY_NAMES[day]}요일`);
+          continue;
+        }
+        validDays.push(day);
       }
 
-      // 해당 요일/시간에 배정된 총 정규 원생 수 확인 (최대 4명)
-      const currentRegularCount = students.filter((s) =>
-        s.regularSlots.some((slot) => slot.dayOfWeek === dayOfWeek && slot.time === time)
-      ).length;
-
-      if (currentRegularCount >= 4) {
-        return {
-          success: false,
-          error: `해당 시간(${time})은 이미 최대 정원(4명)이 모두 배정되었습니다.`,
-        };
+      if (validDays.length === 0) {
+        if (duplicateDays.length > 0) {
+          return {
+            success: false,
+            error: `${student.name} 학생은 이미 ${duplicateDays.join(', ')} ${time}에 수업이 등록되어 있습니다.`,
+          };
+        }
+        if (fullDays.length > 0) {
+          return {
+            success: false,
+            error: `${fullDays.join(', ')} ${time}은 이미 정원(4명)이 찼습니다.`,
+          };
+        }
+        return { success: false, error: '배정 가능한 요일이 없습니다.' };
       }
 
+      const newSlotEntries = validDays.map((d) => ({ dayOfWeek: d, time }));
       const updatedStudent: Student = {
         ...student,
-        regularSlots: [...student.regularSlots, { dayOfWeek, time }],
+        regularSlots: [...student.regularSlots, ...newSlotEntries],
       };
 
       setStudents((prev) =>
-        prev.map((s) =>
-          s.id === studentId ? updatedStudent : s
-        )
+        prev.map((s) => (s.id === studentId ? updatedStudent : s))
       );
 
       // Supabase 클라우드 동기화
       dbUpsertStudent(updatedStudent).catch(console.error);
 
-      addToast('success', '정규 수업 추가', `${student.name} 학생의 정규 수업이 추가되었습니다. (동시간대 ${currentRegularCount + 1}/4명)`);
+      const dayNamesStr = validDays.map((d) => `${DAY_NAMES[d]}`).join('/');
+      addToast(
+        'success',
+        '정규 수업 배정 완료',
+        `${student.name} 학생: 매주 [${dayNamesStr}] ${time} 수업이 추가되었습니다.`
+      );
+
       return { success: true };
     },
     [students, addToast]
+  );
+
+  /**
+   * 원생 정규 수업 단일 추가 (기존 호환용)
+   */
+  const addRegularSlot = useCallback(
+    (studentId: string, dayOfWeek: DayOfWeek, time: string): { success: boolean; error?: string } => {
+      return addRegularSlots(studentId, [dayOfWeek], time);
+    },
+    [addRegularSlots]
   );
 
   /**
@@ -1073,6 +1105,7 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
     toggleSlotLock,
     adjustTickets,
     addRegularSlot,
+    addRegularSlots,
     removeRegularSlot,
     createStudent,
     deleteStudent,

@@ -115,12 +115,12 @@ export const TopDemoBar: React.FC = () => {
                   원장님 관리자
                 </span>
                 {isCloudConnected ? (
-                  <span className="hidden md:inline-flex items-center gap-1 text-[10px] font-semibold text-[#34c759] bg-[#34c759]/15 border border-[#34c759]/25 px-2 py-0.5 rounded-full" title="Supabase 실시간 클라우드 DB 연결 완료">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#34c759] bg-[#34c759]/15 border border-[#34c759]/25 px-2 py-0.5 rounded-full" title="Supabase 실시간 클라우드 DB 연결 완료">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#34c759] animate-pulse" />
                     클라우드 연동
                   </span>
                 ) : (
-                  <span className="hidden md:inline-flex items-center gap-1 text-[10px] font-medium text-white/50 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full" title="로컬 저장소 모드 (Vercel 환경변수 등록 시 실시간 클라우드 DB 자동 활성화)">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-300 bg-amber-400/15 border border-amber-400/25 px-2 py-0.5 rounded-full" title="로컬 저장소 모드 (Vercel 환경변수 등록 시 실시간 클라우드 DB 자동 활성화)">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
                     로컬 모드
                   </span>
@@ -148,6 +148,17 @@ export const TopDemoBar: React.FC = () => {
                 <span className="hidden sm:inline-flex items-center text-[10px] font-semibold bg-white/10 text-white/80 border border-white/10 px-2 py-0.5 rounded-full">
                   스마트 예약 & 보강
                 </span>
+                {isCloudConnected ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#34c759] bg-[#34c759]/15 border border-[#34c759]/25 px-2 py-0.5 rounded-full" title="Supabase 실시간 클라우드 DB 연결 완료">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#34c759] animate-pulse" />
+                    클라우드 연동
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-300 bg-amber-400/15 border border-amber-400/25 px-2 py-0.5 rounded-full" title="로컬 저장소 모드">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    로컬 모드
+                  </span>
+                )}
               </div>
             </div>
           </div>

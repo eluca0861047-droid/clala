@@ -17,7 +17,7 @@ import {
 export const StudentManagement: React.FC = () => {
   const {
     students,
-    addRegularSlot,
+    addRegularSlots,
     removeRegularSlot,
     createStudent,
     deleteStudent,
@@ -82,9 +82,26 @@ export const StudentManagement: React.FC = () => {
 
   // 정규 수업 추가 모달
   const [selectedStudentForSlot, setSelectedStudentForSlot] = useState<string | null>(null);
-  const [slotDay, setSlotDay] = useState<DayOfWeek>(1);
+  const [slotDays, setSlotDays] = useState<DayOfWeek[]>([1]);
   const [slotTime, setSlotTime] = useState<string>('15:00');
   const [slotError, setSlotError] = useState<string | null>(null);
+
+  const toggleSlotDay = (d: DayOfWeek) => {
+    setSlotDays((prev) => {
+      if (prev.includes(d)) {
+        if (prev.length === 1) return prev; // 최소 1개는 유지
+        return prev.filter((item) => item !== d);
+      } else {
+        return [...prev, d].sort((a, b) => a - b);
+      }
+    });
+  };
+
+  const handleSelectDaysPreset = (preset: 'mon_wed_fri' | 'tue_thu' | 'all') => {
+    if (preset === 'mon_wed_fri') setSlotDays([1, 3, 5]);
+    if (preset === 'tue_thu') setSlotDays([2, 4]);
+    if (preset === 'all') setSlotDays([1, 2, 3, 4, 5]);
+  };
 
   const handleCreateStudent = (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,11 +116,16 @@ export const StudentManagement: React.FC = () => {
   const handleAddSlotSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStudentForSlot) return;
+    if (slotDays.length === 0) {
+      setSlotError('최소 1개 이상의 요일을 선택해주세요.');
+      return;
+    }
     setSlotError(null);
 
-    const res = addRegularSlot(selectedStudentForSlot, slotDay, slotTime);
+    const res = addRegularSlots(selectedStudentForSlot, slotDays, slotTime);
     if (res.success) {
       setSelectedStudentForSlot(null);
+      setSlotDays([1]);
     } else {
       setSlotError(res.error || '수업 추가에 실패했습니다.');
     }
@@ -298,6 +320,7 @@ export const StudentManagement: React.FC = () => {
                       type="button"
                       onClick={() => {
                         setSelectedStudentForSlot(student.id);
+                        setSlotDays([1]);
                         setSlotError(null);
                       }}
                       className="text-[11px] font-bold text-[#0071e3] hover:underline flex items-center gap-0.5"
@@ -415,90 +438,162 @@ export const StudentManagement: React.FC = () => {
         </div>
       )}
 
-      {/* 모달 2: 정규 시간표 추가 */}
-      {selectedStudentForSlot && (
-        <div className="fixed inset-0 z-[9990] flex items-center justify-center p-4 bg-black/35 backdrop-blur-md animate-in fade-in duration-200">
-          <div
-            className="bg-white/95 backdrop-blur-2xl w-full max-w-sm rounded-[28px] shadow-[0_20px_60px_rgba(0,0,0,0.18)] border border-black/[0.08] overflow-hidden transform transition-all animate-in zoom-in-95 duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-5 border-b border-black/[0.05] flex items-center justify-between bg-black/[0.01]">
-              <h3 className="font-bold text-[#1d1d1f] text-base">매주 정규 수업 추가</h3>
-              <button
-                onClick={() => setSelectedStudentForSlot(null)}
-                className="text-[#86868b] hover:text-[#1d1d1f] p-1.5 rounded-full hover:bg-black/[0.05]"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddSlotSubmit} className="p-6 space-y-4">
-              {slotError && (
-                <div className="p-3 bg-[#ff3b30]/10 border border-[#ff3b30]/20 text-[#ff3b30] text-xs rounded-[14px] font-semibold">
-                  {slotError}
+      {/* 모달 2: 정규 시간표 추가 (복수 요일 중복 선택 지원) */}
+      {selectedStudentForSlot && (() => {
+        const targetStudent = students.find((s) => s.id === selectedStudentForSlot);
+        return (
+          <div className="fixed inset-0 z-[9990] flex items-center justify-center p-4 bg-black/35 backdrop-blur-md animate-in fade-in duration-200">
+            <div
+              className="bg-white/95 backdrop-blur-2xl w-full max-w-sm rounded-[28px] shadow-[0_20px_60px_rgba(0,0,0,0.18)] border border-black/[0.08] overflow-hidden transform transition-all animate-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-5 border-b border-black/[0.05] flex items-center justify-between bg-black/[0.01]">
+                <div>
+                  <h3 className="font-bold text-[#1d1d1f] text-base">매주 정규 수업 추가</h3>
+                  {targetStudent && (
+                    <p className="text-xs text-[#86868b] mt-0.5">
+                      대상 원생: <span className="font-semibold text-[#1d1d1f]">{targetStudent.name}</span> ({targetStudent.grade || '학년 미지정'})
+                    </p>
+                  )}
                 </div>
-              )}
-
-              <div>
-                <label className="text-xs font-bold text-[#1d1d1f] block mb-1">요일 선택</label>
-                <div className="grid grid-cols-5 gap-1.5">
-                  {([1, 2, 3, 4, 5] as DayOfWeek[]).map((d) => (
-                    <button
-                      key={d}
-                      type="button"
-                      onClick={() => setSlotDay(d)}
-                      className={`py-2 rounded-[12px] text-xs font-bold border transition-all ${
-                        slotDay === d
-                          ? 'border-[#0071e3] bg-[#0071e3] text-white shadow-xs'
-                          : 'border-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.04]'
-                      }`}
-                    >
-                      {DAY_NAMES[d]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-[#1d1d1f] block mb-1">시간 선택 (30분 단위)</label>
-                <select
-                  value={slotTime}
-                  onChange={(e) => setSlotTime(e.target.value)}
-                  className="w-full text-xs p-3 rounded-[14px] bg-black/[0.03] border border-black/[0.06] font-bold text-[#1d1d1f] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/20"
-                >
-                  {TIME_SLOTS.map((t) => {
-                    const count = students.filter((s) =>
-                      s.regularSlots.some((slot) => slot.dayOfWeek === slotDay && slot.time === t)
-                    ).length;
-                    const isFull = count >= 4;
-                    return (
-                      <option key={t} value={t} disabled={isFull}>
-                        {t} ~ {t.split(':')[0]}:{t.split(':')[1] === '00' ? '30' : '00'} (현재 {count}/4명{isFull ? ' 만석' : ''})
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3">
                 <button
                   type="button"
                   onClick={() => setSelectedStudentForSlot(null)}
-                  className="px-4 py-2.5 rounded-[14px] text-xs font-semibold text-[#1d1d1f] bg-black/[0.05] hover:bg-black/[0.08]"
+                  className="text-[#86868b] hover:text-[#1d1d1f] p-1.5 rounded-full hover:bg-black/[0.05] cursor-pointer"
                 >
-                  취소
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-[14px] text-xs font-bold bg-[#0071e3] hover:bg-[#0077ed] text-white shadow-[0_2px_8px_rgba(0,113,227,0.3)] active:scale-95"
-                >
-                  수업 배정
+                  <X className="w-5 h-5" />
                 </button>
               </div>
-            </form>
+
+              <form onSubmit={handleAddSlotSubmit} className="p-6 space-y-4">
+                {slotError && (
+                  <div className="p-3 bg-[#ff3b30]/10 border border-[#ff3b30]/20 text-[#ff3b30] text-xs rounded-[14px] font-semibold leading-relaxed">
+                    {slotError}
+                  </div>
+                )}
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-[#1d1d1f]">
+                      요일 선택 <span className="text-[11px] font-normal text-[#86868b]">(중복 선택 가능)</span>
+                    </label>
+                    <span className="text-[11px] font-semibold text-[#0071e3] bg-[#0071e3]/10 px-2 py-0.5 rounded-full">
+                      {slotDays.length}개 요일 선택됨
+                    </span>
+                  </div>
+
+                  {/* 5개 요일 토글 버튼 */}
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {([1, 2, 3, 4, 5] as DayOfWeek[]).map((d) => {
+                      const isSelected = slotDays.includes(d);
+                      return (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => toggleSlotDay(d)}
+                          className={`py-2 rounded-[12px] text-xs font-bold border transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+                            isSelected
+                              ? 'border-[#0071e3] bg-[#0071e3] text-white shadow-xs scale-[1.02]'
+                              : 'border-black/[0.06] bg-black/[0.02] text-[#1d1d1f] hover:bg-black/[0.05]'
+                          }`}
+                        >
+                          <span className="text-[13px]">{DAY_NAMES[d]}</span>
+                          <span className={`text-[9px] font-medium ${isSelected ? 'text-white/80' : 'text-[#86868b]'}`}>
+                            {isSelected ? '✓ 선택' : '미선택'}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* 빠른 선택 단축 버튼 (월수금 / 화목 / 매일) */}
+                  <div className="mt-2.5 flex items-center gap-1.5 pt-1">
+                    <span className="text-[10px] text-[#86868b] font-medium shrink-0">빠른 선택:</span>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectDaysPreset('mon_wed_fri')}
+                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all cursor-pointer ${
+                          slotDays.length === 3 && slotDays.includes(1) && slotDays.includes(3) && slotDays.includes(5)
+                            ? 'bg-[#0071e3]/15 text-[#0071e3] border-[#0071e3]/30 font-bold'
+                            : 'bg-black/[0.03] text-[#86868b] hover:text-[#1d1d1f] border-black/[0.05]'
+                        }`}
+                      >
+                        월·수·금
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectDaysPreset('tue_thu')}
+                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all cursor-pointer ${
+                          slotDays.length === 2 && slotDays.includes(2) && slotDays.includes(4)
+                            ? 'bg-[#0071e3]/15 text-[#0071e3] border-[#0071e3]/30 font-bold'
+                            : 'bg-black/[0.03] text-[#86868b] hover:text-[#1d1d1f] border-black/[0.05]'
+                        }`}
+                      >
+                        화·목
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectDaysPreset('all')}
+                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all cursor-pointer ${
+                          slotDays.length === 5
+                            ? 'bg-[#0071e3]/15 text-[#0071e3] border-[#0071e3]/30 font-bold'
+                            : 'bg-black/[0.03] text-[#86868b] hover:text-[#1d1d1f] border-black/[0.05]'
+                        }`}
+                      >
+                        매일(월~금)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-[#1d1d1f] block mb-1">시간 선택 (30분 단위)</label>
+                  <select
+                    value={slotTime}
+                    onChange={(e) => setSlotTime(e.target.value)}
+                    className="w-full text-xs p-3 rounded-[14px] bg-black/[0.03] border border-black/[0.06] font-bold text-[#1d1d1f] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/20"
+                  >
+                    {TIME_SLOTS.map((t) => {
+                      const counts = slotDays.map((d) =>
+                        students.filter((s) =>
+                          s.regularSlots.some((slot) => slot.dayOfWeek === d && slot.time === t)
+                        ).length
+                      );
+                      const maxCount = Math.max(...counts, 0);
+                      const isAnyFull = maxCount >= 4;
+                      return (
+                        <option key={t} value={t} disabled={isAnyFull}>
+                          {t} ~ {t.split(':')[0]}:{t.split(':')[1] === '00' ? '30' : '00'}{' '}
+                          {slotDays.length === 1
+                            ? `(현재 ${counts[0]}/4명${isAnyFull ? ' 만석' : ''})`
+                            : `(선택 요일 최대 ${maxCount}/4명${isAnyFull ? ' 만석 포함' : ''})`}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedStudentForSlot(null)}
+                    className="px-4 py-2.5 rounded-[14px] text-xs font-semibold text-[#1d1d1f] bg-black/[0.05] hover:bg-black/[0.08] cursor-pointer"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 rounded-[14px] text-xs font-bold bg-[#0071e3] hover:bg-[#0077ed] text-white shadow-[0_2px_8px_rgba(0,113,227,0.3)] active:scale-95 cursor-pointer"
+                  >
+                    {slotDays.length > 1 ? `${slotDays.length}개 요일 일괄 배정` : '수업 배정'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };
