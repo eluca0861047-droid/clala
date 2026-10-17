@@ -129,37 +129,15 @@ export const StudentManagement: React.FC = () => {
         </button>
       </div>
 
-      {/* 검색 & 정렬 툴바 (Apple Inset Glass Toolbar) */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white/90 backdrop-blur-xl p-3 rounded-[20px] border border-black/[0.06] shadow-xs">
-        {/* 이름 검색 입력창 */}
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-[#86868b] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="학생 이름 또는 학년 검색..."
-            className="w-full pl-9.5 pr-8 py-2 rounded-[14px] bg-black/[0.04] focus:bg-white text-xs font-medium text-[#1d1d1f] placeholder:text-[#86868b] border border-transparent focus:border-[#0071e3] focus:outline-none transition-all shadow-inner"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[#86868b] hover:text-[#1d1d1f] cursor-pointer"
-              title="검색어 지우기"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-
-        {/* 정렬 방식 선택 (가나다순 / 학년순) & 총 인원수 */}
-        <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0">
-          <div className="bg-black/[0.04] p-1 rounded-[14px] flex items-center border border-black/[0.02] shadow-inner">
+      {/* 검색 & 정렬 툴바 (Apple macOS Style Capsule Toolbar) */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white/80 backdrop-blur-xl px-4 py-2.5 rounded-[20px] border border-black/[0.06] shadow-xs">
+        {/* 좌측: 정렬 세그먼트 (가나다순 / 학년순) & 총 인원 카운트 */}
+        <div className="flex items-center gap-3">
+          <div className="bg-black/[0.04] p-1 rounded-[14px] flex items-center border border-black/[0.02]">
             <button
               type="button"
               onClick={() => setSortBy('name')}
-              className={`px-3 py-1.5 rounded-[10px] text-xs font-semibold transition-all cursor-pointer ${
+              className={`px-3 py-1 rounded-[10px] text-xs font-semibold transition-all cursor-pointer ${
                 sortBy === 'name'
                   ? 'bg-white text-[#1d1d1f] shadow-xs font-bold'
                   : 'text-[#86868b] hover:text-[#1d1d1f]'
@@ -170,7 +148,7 @@ export const StudentManagement: React.FC = () => {
             <button
               type="button"
               onClick={() => setSortBy('grade')}
-              className={`px-3 py-1.5 rounded-[10px] text-xs font-semibold transition-all cursor-pointer ${
+              className={`px-3 py-1 rounded-[10px] text-xs font-semibold transition-all cursor-pointer ${
                 sortBy === 'grade'
                   ? 'bg-white text-[#1d1d1f] shadow-xs font-bold'
                   : 'text-[#86868b] hover:text-[#1d1d1f]'
@@ -180,9 +158,31 @@ export const StudentManagement: React.FC = () => {
             </button>
           </div>
 
-          <span className="text-xs font-semibold text-[#86868b] px-1 shrink-0">
-            총 {displayedStudents.length}명
+          <span className="text-xs text-[#86868b] font-medium">
+            총 <strong className="text-[#1d1d1f] font-bold">{displayedStudents.length}</strong>명
           </span>
+        </div>
+
+        {/* 우측: 콤팩트한 애플 검색 캡슐 (Compact Search Pill) */}
+        <div className="relative w-full sm:w-56 md:w-64">
+          <Search className="w-3.5 h-3.5 text-[#86868b] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="원생 검색"
+            className="w-full pl-9 pr-7 py-1.5 rounded-full bg-black/[0.04] hover:bg-black/[0.06] focus:bg-white text-xs font-medium text-[#1d1d1f] placeholder:text-[#86868b] border border-black/[0.06] focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20 focus:outline-none transition-all shadow-2xs"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full bg-black/10 hover:bg-black/20 text-[#86868b] hover:text-[#1d1d1f] cursor-pointer transition-colors"
+              title="검색어 지우기"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
         </div>
       </div>
 
