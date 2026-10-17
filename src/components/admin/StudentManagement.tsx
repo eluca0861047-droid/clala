@@ -1,0 +1,383 @@
+import React, { useState } from 'react';
+import { useReservation } from '../../context/ReservationContext';
+import { DayOfWeek } from '../../types';
+import { DAY_NAMES, TIME_SLOTS } from '../../utils/dateUtils';
+import {
+  Plus,
+  Trash2,
+  Calendar,
+  Phone,
+  UserPlus,
+  X,
+  Share2,
+  ExternalLink,
+} from 'lucide-react';
+
+export const StudentManagement: React.FC = () => {
+  const {
+    students,
+    addRegularSlot,
+    removeRegularSlot,
+    createStudent,
+    deleteStudent,
+    getStudentShareUrl,
+    addToast,
+  } = useReservation();
+
+  // 신규 원생 등록 모달
+  const [isNewStudentModalOpen, setIsNewStudentModalOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newGrade, setNewGrade] = useState('초3');
+  const [newPhone, setNewPhone] = useState('010-');
+
+  // 정규 수업 추가 모달
+  const [selectedStudentForSlot, setSelectedStudentForSlot] = useState<string | null>(null);
+  const [slotDay, setSlotDay] = useState<DayOfWeek>(1);
+  const [slotTime, setSlotTime] = useState<string>('15:00');
+  const [slotError, setSlotError] = useState<string | null>(null);
+
+  const handleCreateStudent = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim()) return;
+    createStudent(newName.trim(), newGrade, newPhone.trim());
+    setNewName('');
+    setNewGrade('초3');
+    setNewPhone('010-');
+    setIsNewStudentModalOpen(false);
+  };
+
+  const handleAddSlotSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStudentForSlot) return;
+    setSlotError(null);
+
+    const res = addRegularSlot(selectedStudentForSlot, slotDay, slotTime);
+    if (res.success) {
+      setSelectedStudentForSlot(null);
+    } else {
+      setSlotError(res.error || '수업 추가에 실패했습니다.');
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* 상단 액션 바 */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-bold text-[#1d1d1f]">원생 및 정규 수업 관리</h3>
+          <p className="text-xs text-[#86868b] mt-0.5">
+            학생별 매주 정규 수업 시간을 설정하고 학부모 1:1 안심 예약 링크를 발급합니다.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsNewStudentModalOpen(true)}
+          className="flex items-center gap-1.5 px-4 py-2.5 rounded-[16px] bg-[#0071e3] hover:bg-[#0077ed] active:scale-95 text-white text-xs font-semibold shadow-[0_4px_12px_rgba(0,113,227,0.3)] transition-all"
+        >
+          <UserPlus className="w-4 h-4" />
+          <span>신규 원생 등록</span>
+        </button>
+      </div>
+
+      {/* 원생 카드 그리드 (Apple macOS Style Grid) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {students.map((student) => {
+          return (
+            <div
+              key={student.id}
+              className="bg-white/90 backdrop-blur-xl rounded-[24px] p-5 border border-black/[0.06] shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col justify-between hover:shadow-md transition-all"
+            >
+              <div>
+                {/* 학생 프로필 헤더 */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-[16px] bg-[#0071e3]/10 text-[#0071e3] flex items-center justify-center font-bold text-base shadow-xs">
+                      {student.name[0]}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="font-bold text-[#1d1d1f] text-base">{student.name}</h4>
+                        <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-black/[0.04] text-[#1d1d1f] border border-black/[0.04]">
+                          {student.grade}
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#86868b] mt-0.5 flex items-center gap-1">
+                        <Phone className="w-3 h-3" />
+                        <span>{student.phone}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 삭제 버튼 */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm(`${student.name} 학생을 정말 삭제하시겠습니까? 관련 예약도 모두 삭제됩니다.`)) {
+                        deleteStudent(student.id);
+                      }
+                    }}
+                    className="text-[#86868b] hover:text-[#ff3b30] p-1.5 rounded-full hover:bg-black/[0.05] transition-colors"
+                    title="원생 삭제"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* 학부모 전용 예약 링크 (Apple Privacy Capsule) */}
+                <div className="mt-3.5 p-3.5 bg-[#0071e3]/[0.06] rounded-[18px] border border-[#0071e3]/15 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-[#0071e3] flex items-center gap-1">
+                      <span>🔗 학부모 전용 안심 링크</span>
+                      <span className="text-[10px] text-[#0071e3] font-semibold bg-white/80 px-1.5 py-0.2 rounded-full border border-[#0071e3]/20">
+                        타 학생 차단
+                      </span>
+                    </span>
+                    <span className="text-[10px] font-mono text-[#0071e3]/80">
+                      코드: {student.accessCode || student.id}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = getStudentShareUrl(student);
+                        navigator.clipboard.writeText(url);
+                        addToast(
+                          'success',
+                          '전용 링크 복사 완료',
+                          `${student.name} 학부모 전용 링크가 클립보드에 복사되었습니다! 카카오톡으로 전송하세요.`
+                        );
+                      }}
+                      className="flex-1 py-1.5 px-2.5 rounded-[12px] bg-[#0071e3] hover:bg-[#0077ed] active:scale-95 text-white text-xs font-semibold transition-all flex items-center justify-center gap-1 shadow-xs"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>카톡 전송용 링크 복사</span>
+                    </button>
+
+                    <a
+                      href={getStudentShareUrl(student)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 rounded-[12px] bg-white/80 hover:bg-white text-[#0071e3] border border-[#0071e3]/20 text-xs font-semibold transition-all flex items-center justify-center shadow-xs"
+                      title="학부모 화면 새 탭에서 열어보기"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                </div>
+
+                {/* 매주 정규 수업 목록 */}
+                <div className="mt-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#1d1d1f] flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-[#0071e3]" />
+                      <span>매주 정규 수업</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedStudentForSlot(student.id);
+                        setSlotError(null);
+                      }}
+                      className="text-[11px] font-bold text-[#0071e3] hover:underline flex items-center gap-0.5"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>추가</span>
+                    </button>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5 min-h-[48px]">
+                    {student.regularSlots.length === 0 ? (
+                      <span className="text-xs text-[#86868b] py-2">배정된 정규 수업이 없습니다.</span>
+                    ) : (
+                      student.regularSlots
+                        .slice()
+                        .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
+                        .map((slot) => (
+                          <div
+                            key={`${slot.dayOfWeek}-${slot.time}`}
+                            className="bg-[#0071e3]/10 border border-[#0071e3]/20 text-[#0071e3] px-2.5 py-1 rounded-[12px] text-xs font-semibold flex items-center gap-1.5 shadow-2xs"
+                          >
+                            <span>
+                              {DAY_NAMES[slot.dayOfWeek as DayOfWeek]} {slot.time}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removeRegularSlot(student.id, slot.dayOfWeek, slot.time)}
+                              className="text-[#0071e3]/60 hover:text-[#ff3b30] transition-colors"
+                              title="삭제"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 모달 1: 신규 학생 등록 (Apple Action Sheet) */}
+      {isNewStudentModalOpen && (
+        <div className="fixed inset-0 z-[9990] flex items-center justify-center p-4 bg-black/35 backdrop-blur-md animate-in fade-in duration-200">
+          <div
+            className="bg-white/95 backdrop-blur-2xl w-full max-w-md rounded-[28px] shadow-[0_20px_60px_rgba(0,0,0,0.18)] border border-black/[0.08] overflow-hidden transform transition-all animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 border-b border-black/[0.05] flex items-center justify-between bg-black/[0.01]">
+              <h3 className="font-bold text-[#1d1d1f] text-base">신규 원생 등록</h3>
+              <button
+                onClick={() => setIsNewStudentModalOpen(false)}
+                className="text-[#86868b] hover:text-[#1d1d1f] p-1.5 rounded-full hover:bg-black/[0.05] transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateStudent} className="p-6 space-y-4">
+              <div>
+                <label className="text-xs font-bold text-[#1d1d1f] block mb-1">학생 이름 *</label>
+                <input
+                  type="text"
+                  required
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="예: 최서준"
+                  className="w-full text-xs p-3 rounded-[14px] bg-black/[0.03] border border-black/[0.06] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/20 focus:border-[#0071e3]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-[#1d1d1f] block mb-1">학년 / 연령 *</label>
+                <input
+                  type="text"
+                  required
+                  value={newGrade}
+                  onChange={(e) => setNewGrade(e.target.value)}
+                  placeholder="예: 초3, 7세"
+                  className="w-full text-xs p-3 rounded-[14px] bg-black/[0.03] border border-black/[0.06] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/20 focus:border-[#0071e3]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-[#1d1d1f] block mb-1">학부모 연락처</label>
+                <input
+                  type="text"
+                  value={newPhone}
+                  onChange={(e) => setNewPhone(e.target.value)}
+                  placeholder="예: 010-1234-5678"
+                  className="w-full text-xs p-3 rounded-[14px] bg-black/[0.03] border border-black/[0.06] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/20 focus:border-[#0071e3]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsNewStudentModalOpen(false)}
+                  className="px-4 py-2.5 rounded-[14px] text-xs font-semibold text-[#1d1d1f] bg-black/[0.05] hover:bg-black/[0.08]"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-[14px] text-xs font-bold bg-[#0071e3] hover:bg-[#0077ed] text-white shadow-[0_2px_8px_rgba(0,113,227,0.3)] active:scale-95"
+                >
+                  원생 등록 완료
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 모달 2: 정규 시간표 추가 */}
+      {selectedStudentForSlot && (
+        <div className="fixed inset-0 z-[9990] flex items-center justify-center p-4 bg-black/35 backdrop-blur-md animate-in fade-in duration-200">
+          <div
+            className="bg-white/95 backdrop-blur-2xl w-full max-w-sm rounded-[28px] shadow-[0_20px_60px_rgba(0,0,0,0.18)] border border-black/[0.08] overflow-hidden transform transition-all animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 border-b border-black/[0.05] flex items-center justify-between bg-black/[0.01]">
+              <h3 className="font-bold text-[#1d1d1f] text-base">매주 정규 수업 추가</h3>
+              <button
+                onClick={() => setSelectedStudentForSlot(null)}
+                className="text-[#86868b] hover:text-[#1d1d1f] p-1.5 rounded-full hover:bg-black/[0.05]"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddSlotSubmit} className="p-6 space-y-4">
+              {slotError && (
+                <div className="p-3 bg-[#ff3b30]/10 border border-[#ff3b30]/20 text-[#ff3b30] text-xs rounded-[14px] font-semibold">
+                  {slotError}
+                </div>
+              )}
+
+              <div>
+                <label className="text-xs font-bold text-[#1d1d1f] block mb-1">요일 선택</label>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {([1, 2, 3, 4, 5] as DayOfWeek[]).map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setSlotDay(d)}
+                      className={`py-2 rounded-[12px] text-xs font-bold border transition-all ${
+                        slotDay === d
+                          ? 'border-[#0071e3] bg-[#0071e3] text-white shadow-xs'
+                          : 'border-black/[0.06] text-[#1d1d1f] hover:bg-black/[0.04]'
+                      }`}
+                    >
+                      {DAY_NAMES[d]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-[#1d1d1f] block mb-1">시간 선택 (30분 단위)</label>
+                <select
+                  value={slotTime}
+                  onChange={(e) => setSlotTime(e.target.value)}
+                  className="w-full text-xs p-3 rounded-[14px] bg-black/[0.03] border border-black/[0.06] font-bold text-[#1d1d1f] focus:outline-none focus:ring-2 focus:ring-[#0071e3]/20"
+                >
+                  {TIME_SLOTS.map((t) => {
+                    const count = students.filter((s) =>
+                      s.regularSlots.some((slot) => slot.dayOfWeek === slotDay && slot.time === t)
+                    ).length;
+                    const isFull = count >= 4;
+                    return (
+                      <option key={t} value={t} disabled={isFull}>
+                        {t} ~ {t.split(':')[0]}:{t.split(':')[1] === '00' ? '30' : '00'} (현재 {count}/4명{isFull ? ' 만석' : ''})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedStudentForSlot(null)}
+                  className="px-4 py-2.5 rounded-[14px] text-xs font-semibold text-[#1d1d1f] bg-black/[0.05] hover:bg-black/[0.08]"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-[14px] text-xs font-bold bg-[#0071e3] hover:bg-[#0077ed] text-white shadow-[0_2px_8px_rgba(0,113,227,0.3)] active:scale-95"
+                >
+                  수업 배정
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

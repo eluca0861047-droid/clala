@@ -1,0 +1,130 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    letter-spacing: -0.015em;
+  }
+  body {
+    @apply bg-[#f5f5f7] text-[#1d1d1f] font-sans min-h-screen antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+/* Apple-style ultra-subtle smooth scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Apple-style continuous card shadow & glass blur */
+.apple-card {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.apple-card-hover {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.apple-card-hover:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 30px -4px rgba(0, 0, 0, 0.07), 0 2px 6px rgba(0, 0, 0, 0.03);
+}
+
+.apple-btn-primary {
+  background: #0071e3;
+  color: #ffffff;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.apple-btn-primary:hover {
+  background: #0077ed;
+  box-shadow: 0 4px 14px rgba(0, 113, 227, 0.35);
+}
+.apple-btn-primary:active {
+  transform: scale(0.98);
+}
+
+/* ==========================================================================
+   인쇄 (Print) 전용 최적화 스타일 (A4 가로 1페이지 완벽 맞춤)
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 4mm 5mm;
+  }
+
+  *, *::before, *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 10px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #root, main {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* 인쇄 시 불필요한 컨트롤 및 네비게이션 완벽 숨김 */
+  .no-print {
+    display: none !important;
+  }
+
+  /* 인쇄 전용 블록 강제 표시 */
+  .print-only {
+    display: block !important;
+  }
+
+  /* 행 단위 페이지 분할 방지 */
+  .print-avoid-break {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* 인쇄 시 버튼 스타일 초기화 */
+  button {
+    cursor: default !important;
+  }
+}
+
