@@ -7,6 +7,7 @@ import {
   Calendar,
   Share2,
   ChevronDown,
+  Lock,
 } from 'lucide-react';
 import { parseDate, DAY_NAMES } from '../../utils/dateUtils';
 
@@ -26,6 +27,8 @@ export const TopDemoBar: React.FC = () => {
     goToAdminHome,
     addToast,
     isCloudConnected,
+    isAdminAuthenticated,
+    logoutAdmin,
   } = useReservation();
 
   // 접속 학생 목록 가나다순(한국어 오름차순) 정렬
@@ -275,6 +278,19 @@ export const TopDemoBar: React.FC = () => {
             />
             <span className="text-white/90 font-bold">({dayName})</span>
           </div>
+
+          {/* 원장님 모드 즉시 잠금 버튼 */}
+          {appMode === 'admin' && isAdminAuthenticated && (
+            <button
+              type="button"
+              onClick={logoutAdmin}
+              className="flex items-center gap-1.5 bg-white/[0.08] hover:bg-white/[0.15] px-2.5 py-1.5 rounded-xl border border-white/[0.08] text-xs text-white/80 hover:text-white transition-all cursor-pointer active:scale-95"
+              title="원장님 모드 화면 즉시 잠금"
+            >
+              <Lock className="w-3.5 h-3.5 text-[#ff453a]" />
+              <span className="hidden sm:inline text-[11px] font-semibold">잠금</span>
+            </button>
+          )}
         </div>
       </div>
     </header>

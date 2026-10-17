@@ -3,10 +3,21 @@ import { ReservationProvider, useReservation } from './context/ReservationContex
 import { TopDemoBar } from './components/header/TopDemoBar';
 import { ParentView } from './components/parent/ParentView';
 import { AdminView } from './components/admin/AdminView';
+import { AdminLockScreen } from './components/auth/AdminLockScreen';
 import { ToastContainer } from './components/common/ToastContainer';
 
 const AppContent: React.FC = () => {
-  const { appMode } = useReservation();
+  const { appMode, isParentDirectLink, isAdminAuthenticated } = useReservation();
+
+  // 원장님 미인증 상태이고 학부모 전용링크가 아닌 경우 -> 전체 잠금 (상단바 및 모드 전환 원천 차단)
+  if (!isAdminAuthenticated && !isParentDirectLink) {
+    return (
+      <div className="min-h-screen bg-[#1d1d1f] text-white flex flex-col font-sans select-none">
+        <ToastContainer />
+        <AdminLockScreen />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f5f5f7] text-[#1d1d1f] flex flex-col font-sans print:bg-white print:min-h-0 selection:bg-[#0071e3]/20 selection:text-[#0071e3]">
@@ -21,7 +32,7 @@ const AppContent: React.FC = () => {
       </div>
 
       {/* 3. 모드별 메인 화면 렌더링 */}
-      <main className="flex-1 pb-16 print:p-0 print:m-0 print:pb-0">
+      <main className="flex-1 pb-16 print:p-0 print:m-0 print:pb-0 flex flex-col">
         {appMode === 'parent' ? <ParentView /> : <AdminView />}
       </main>
 

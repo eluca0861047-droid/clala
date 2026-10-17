@@ -121,6 +121,12 @@ interface ReservationContextType {
 
   // Cloud Database Status
   isCloudConnected: boolean;
+
+  // Director Authentication
+  isAdminAuthenticated: boolean;
+  loginAdmin: (password: string, rememberDevice?: boolean) => boolean;
+  logoutAdmin: () => void;
+  changeAdminPassword: (oldPassword: string, newPassword: string) => { success: boolean; error?: string };
 }
 
 const STORAGE_KEYS = {
@@ -132,6 +138,9 @@ const STORAGE_KEYS = {
   CURRENT_STUDENT: 'pianoslot_current_student_v1',
   APP_MODE: 'pianoslot_app_mode_v1',
   SIMULATED_TODAY: 'pianoslot_simulated_today_v1',
+  ADMIN_PASSWORD: 'pianoslot_admin_password_v1',
+  ADMIN_AUTH: 'pianoslot_admin_auth_v1',
+  ADMIN_REMEMBER: 'pianoslot_admin_remember_v1',
 };
 
 const ReservationContext = createContext<ReservationContextType | null>(null);
@@ -234,6 +243,27 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [adminTab, setAdminTab] = useState<'timetable' | 'students'>('timetable');
   const [adminHomeTimestamp, setAdminHomeTimestamp] = useState<number>(0);
+
+  // 원장님 모드 보안 인증 상태 (기기 기억하기 또는 현재 세션 로그인 확인)
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('student') || params.has('code')) {
+      return false; // 학부모는 원장님 모드 인증 불필요
+    }
+    // 이 기기에서 원장님 로그인 유지가 켜져 있는지 확인
+    const remembered = localStorage.getItem(STORAGE_KEYS.ADMIN_REMEMBER);
+    if (remembered === 'true') {
+      return true;
+    }
+    const sessionAuth = sessionStorage.getItem(STORAGE_KEYS.ADMIN_AUTH);
+    return sessionAuth === 'true';
+  });
+
+  const [adminPassword, setAdminPassword] = useState<string>(() => {
+    if (typeof window === 'undefined') return '1234';
+    return localStorage.getItem(STORAGE_KEYS.ADMIN_PASSWORD) || '1234';
+  });
 
   // 학생별 고유 카카오톡 전용 링크 생성 헬퍼
   const getStudentShareUrl = useCallback((student: Student): string => {
@@ -409,6 +439,59 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
     addToast('info', '원장님 모드 첫 화면', '주간 타임테이블 첫 화면으로 이동했습니다.');
   }, [appMode, addToast]);
+
+  // 원장님 모드 로그인
+  const loginAdmin = useCallback(
+    (inputPassword: string, rememberDevice: boolean = true): boolean => {
+      const currentSaved = localStorage.getItem(STORAGE_KEYS.ADMIN_PASSWORD) || adminPassword || '1234';
+      if (inputPassword === currentSaved) {
+        setIsAdminAuthenticated(true);
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, 'true');
+          if (rememberDevice) {
+            localStorage.setItem(STORAGE_KEYS.ADMIN_REMEMBER, 'true');
+          } else {
+            localStorage.removeItem(STORAGE_KEYS.ADMIN_REMEMBER);
+          }
+        }
+        addToast('success', '원장님 인증 완료', '원장님 모드로 안전하게 접속되었습니다.');
+        return true;
+      }
+      return false;
+    },
+    [adminPassword, addToast]
+  );
+
+  // 원장님 모드 잠금 / 로그아웃
+  const logoutAdmin = useCallback(() => {
+    setIsAdminAuthenticated(false);
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(STORAGE_KEYS.ADMIN_AUTH);
+      localStorage.removeItem(STORAGE_KEYS.ADMIN_REMEMBER);
+    }
+    addToast('info', '원장님 모드 잠금', '화면이 안전하게 잠겼습니다.');
+  }, [addToast]);
+
+  // 원장님 비밀번호 변경
+  const changeAdminPassword = useCallback(
+    (oldPassword: string, newPassword: string): { success: boolean; error?: string } => {
+      const currentSaved = localStorage.getItem(STORAGE_KEYS.ADMIN_PASSWORD) || adminPassword || '1234';
+      if (oldPassword !== currentSaved) {
+        return { success: false, error: '현재 비밀번호가 일치하지 않습니다.' };
+      }
+      if (!newPassword || newPassword.trim().length < 4) {
+        return { success: false, error: '새 비밀번호는 4자리 이상이어야 합니다.' };
+      }
+      const cleanNew = newPassword.trim();
+      setAdminPassword(cleanNew);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEYS.ADMIN_PASSWORD, cleanNew);
+      }
+      addToast('success', '비밀번호 변경 완료', '새로운 원장님 비밀번호가 안전하게 저장되었습니다.');
+      return { success: true };
+    },
+    [adminPassword, addToast]
+  );
 
   const currentStudent = useMemo(() => {
     return students.find((s) => s.id === currentStudentId) || students[0];
@@ -1169,6 +1252,10 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
     adminHomeTimestamp,
     goToAdminHome,
     isCloudConnected: isSupabaseConfigured,
+    isAdminAuthenticated,
+    loginAdmin,
+    logoutAdmin,
+    changeAdminPassword,
   };
 
   return <ReservationContext.Provider value={value}>{children}</ReservationContext.Provider>;
