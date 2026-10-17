@@ -6,6 +6,7 @@ import {
   Monitor,
   Calendar,
   Share2,
+  ChevronDown,
 } from 'lucide-react';
 import { parseDate, DAY_NAMES } from '../../utils/dateUtils';
 
@@ -162,94 +163,102 @@ export const TopDemoBar: React.FC = () => {
           </div>
         )}
 
-        {/* 중앙: 모드 전환 & 접속 학생 (원장님 관리자와 접속학생 위치 스왑) */}
-        <div className="flex items-center gap-2">
-          {appMode === 'parent' ? (
-            <>
-              {/* 1. 학부모 모드 버튼 */}
-              <div className="bg-white/[0.08] p-1 rounded-2xl border border-white/[0.08] flex items-center shadow-inner">
-                <button
-                  type="button"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-[13px] font-bold bg-white text-[#1d1d1f] shadow-[0_2px_8px_rgba(0,0,0,0.15)] transition-all cursor-default"
-                >
-                  <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0071e3]" />
-                  <span>학부모 모드</span>
-                  <span className="hidden md:inline text-[10px] opacity-60 font-normal">(모바일)</span>
-                </button>
-              </div>
+        {/* 중앙: 모드 전환 & 접속 학생 (Apple 통합 세그먼티드 컨트롤: 학부모 모드 + 접속 학생 일체형 토글) */}
+        <div className="flex items-center">
+          <div className="inline-flex items-center p-1 bg-white/[0.08] backdrop-blur-2xl rounded-2xl border border-white/[0.12] shadow-[0_4px_20px_rgba(0,0,0,0.15)] transition-all">
+            {appMode === 'parent' ? (
+              <>
+                {/* 1. 학부모 모드 + 접속 학생 일체형 토글 묶음 (Apple Elevated Active Pill) */}
+                <div className="flex items-center bg-white text-[#1d1d1f] shadow-[0_2px_10px_rgba(0,0,0,0.18),0_1px_2px_rgba(0,0,0,0.08)] rounded-xl transition-all">
+                  {/* 학부모 모드 라벨/버튼 */}
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-[13px] font-bold tracking-tight select-none">
+                    <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0071e3] shrink-0" />
+                    <span>학부모 모드</span>
+                    <span className="hidden md:inline text-[10px] text-[#1d1d1f]/50 font-normal">(모바일)</span>
+                  </div>
 
-              {/* 2. 접속 학생 전환 드롭다운 (원장님 관리자 왼쪽으로 위치 변경) */}
-              <div className="flex items-center gap-1.5 bg-white/[0.08] px-2.5 py-1.5 rounded-2xl border border-white/[0.08] shadow-inner">
-                <span className="text-xs text-white/50 shrink-0 hidden sm:inline">접속 학생:</span>
-                <select
-                  value={currentStudentId}
-                  onChange={(e) => {
-                    sessionStorage.setItem('pianoslot_user_selected_student', 'true');
-                    setCurrentStudentId(e.target.value);
-                  }}
-                  className="bg-transparent text-xs sm:text-[13px] font-bold text-white focus:outline-none cursor-pointer pr-1"
-                >
-                  {sortedStudents.map((st) => (
-                    <option key={st.id} value={st.id} className="bg-[#1d1d1f] text-white">
-                      {st.name} ({st.grade})
-                    </option>
-                  ))}
-                </select>
+                  {/* 세련된 애플 헤어라인 구분선 */}
+                  <div className="w-[1px] h-4 bg-black/15 my-auto" />
 
-                {/* 현재 학생 전용 링크 복사 버튼 */}
-                <button
-                  type="button"
-                  onClick={handleCopyCurrentStudentLink}
-                  className="ml-1 p-1.5 rounded-xl bg-white/10 hover:bg-[#0071e3] text-white/80 hover:text-white text-xs transition-colors flex items-center gap-1 active:scale-95"
-                  title="이 학생의 학부모 전용 링크 복사"
-                >
-                  <Share2 className="w-3.5 h-3.5" />
-                  <span className="hidden xl:inline text-[10px]">전용링크</span>
-                </button>
-              </div>
+                  {/* 접속 학생 선택 & 링크 복사 (토글 내 일체화) */}
+                  <div className="flex items-center pl-2 pr-1 py-1">
+                    <span className="text-[11px] font-semibold text-[#1d1d1f]/60 shrink-0 hidden sm:inline mr-1">
+                      접속:
+                    </span>
+                    <div className="relative flex items-center">
+                      <select
+                        value={currentStudentId}
+                        onChange={(e) => {
+                          sessionStorage.setItem('pianoslot_user_selected_student', 'true');
+                          setCurrentStudentId(e.target.value);
+                        }}
+                        className="bg-transparent text-xs sm:text-[13px] font-bold text-[#1d1d1f] focus:outline-none cursor-pointer pl-1 pr-5 py-0.5 appearance-none tracking-tight"
+                        title="접속하여 시연할 학생 선택"
+                      >
+                        {sortedStudents.map((st) => (
+                          <option key={st.id} value={st.id} className="bg-white text-[#1d1d1f] font-medium">
+                            {st.name} ({st.grade})
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-3 h-3 text-[#1d1d1f]/50 pointer-events-none absolute right-1" />
+                    </div>
 
-              {/* 3. 원장님 관리자 전환 버튼 (접속 학생 오른쪽으로 이동) */}
-              <div className="bg-white/[0.08] p-1 rounded-2xl border border-white/[0.08] flex items-center shadow-inner">
+                    {/* 학생 전용 링크 복사 버튼 */}
+                    <button
+                      type="button"
+                      onClick={handleCopyCurrentStudentLink}
+                      className="ml-1 p-1 rounded-lg hover:bg-black/5 active:bg-black/10 text-black/60 hover:text-[#0071e3] transition-colors shrink-0 cursor-pointer"
+                      title="이 학생의 학부모 전용 링크 복사"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. 원장님 관리자 전환 버튼 */}
                 <button
                   type="button"
                   onClick={() => setAppMode('admin')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-[13px] font-semibold text-white/70 hover:text-white hover:bg-white/[0.06] transition-all cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-[13px] font-semibold text-white/70 hover:text-white hover:bg-white/[0.06] transition-all cursor-pointer active:scale-[0.98]"
                   title="원장님 관리자 화면으로 전환"
                 >
-                  <Monitor className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0071e3]" />
+                  <Monitor className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0071e3] shrink-0" />
                   <span>원장님 관리자</span>
                   <span className="hidden md:inline text-[10px] opacity-60 font-normal">(와이드)</span>
                 </button>
-              </div>
-            </>
-          ) : (
-            /* 원장님 관리자 모드일 때: Apple Segmented Control */
-            <div className="bg-white/[0.08] p-1 rounded-2xl border border-white/[0.08] flex items-center shadow-inner">
-              <button
-                type="button"
-                onClick={() => {
-                  setAppMode('parent');
-                  if (sortedStudents.length > 0) {
-                    setCurrentStudentId(sortedStudents[0].id);
-                  }
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-[13px] font-semibold text-white/70 hover:text-white hover:bg-white/[0.06] transition-all cursor-pointer"
-              >
-                <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0071e3]" />
-                <span>학부모 모드</span>
-                <span className="hidden md:inline text-[10px] opacity-60 font-normal">(모바일)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setAppMode('admin')}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-[13px] font-bold bg-white text-[#1d1d1f] shadow-[0_2px_8px_rgba(0,0,0,0.15)] transition-all cursor-default"
-              >
-                <Monitor className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0071e3]" />
-                <span>원장님 관리자</span>
-                <span className="hidden md:inline text-[10px] opacity-60 font-normal">(와이드)</span>
-              </button>
-            </div>
-          )}
+              </>
+            ) : (
+              /* 원장님 관리자 모드일 때: Apple Segmented Control */
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAppMode('parent');
+                    if (sortedStudents.length > 0 && !currentStudentId) {
+                      setCurrentStudentId(sortedStudents[0].id);
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-[13px] font-semibold text-white/70 hover:text-white hover:bg-white/[0.06] transition-all cursor-pointer active:scale-[0.98]"
+                  title="학부모 모드로 전환"
+                >
+                  <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0071e3] shrink-0" />
+                  <span>학부모 모드</span>
+                  <span className="hidden md:inline text-[10px] opacity-60 font-normal">(모바일)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAppMode('admin')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-[13px] font-bold bg-white text-[#1d1d1f] shadow-[0_2px_10px_rgba(0,0,0,0.18),0_1px_2px_rgba(0,0,0,0.08)] transition-all cursor-default"
+                >
+                  <Monitor className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0071e3] shrink-0" />
+                  <span>원장님 관리자</span>
+                  <span className="hidden md:inline text-[10px] text-[#1d1d1f]/50 font-normal">(와이드)</span>
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {/* 우측: 시뮬레이션 날짜 (Apple Minimalist) */}
