@@ -180,12 +180,21 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
       if (params.has('student') || params.has('code')) {
         return 'parent'; // 학부모 전용 링크로 들어오면 무조건 학부모 모드로 고정
       }
+      if (params.get('mode') === 'parent') {
+        return 'parent';
+      }
       if (params.get('mode') === 'admin') {
         return 'admin';
       }
+
+      // 현재 탭 세션 저장소 확인 (새로고침 시 상태 유지)
+      const sessionSaved = sessionStorage.getItem('pianoslot_app_mode_v1');
+      if (sessionSaved === 'parent' || sessionSaved === 'admin') {
+        return sessionSaved;
+      }
     }
-    const saved = localStorage.getItem(STORAGE_KEYS.APP_MODE);
-    return (saved as 'parent' | 'admin') || 'parent';
+    // 앱 처음 접속 시 기본 초기값: 원장님 관리자 모드 ('admin')
+    return 'admin';
   }));
 
   const [simulatedToday, setSimulatedToday] = useState<string>(() => {
@@ -259,6 +268,9 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [currentStudentId]);
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('pianoslot_app_mode_v1', appMode);
+    }
     localStorage.setItem(STORAGE_KEYS.APP_MODE, appMode);
   }, [appMode]);
 
@@ -883,6 +895,12 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setLogs(seed.logs);
     setCurrentStudentId('student-1');
     setSimulatedToday(defaultTodayStr);
+    setAppMode('admin');
+
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('pianoslot_app_mode_v1');
+      sessionStorage.removeItem('pianoslot_simulated_today_v1');
+    }
 
     localStorage.removeItem(STORAGE_KEYS.STUDENTS);
     localStorage.removeItem(STORAGE_KEYS.BOOKINGS);
