@@ -146,7 +146,8 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
   // States with LocalStorage Initialization
   const [students, setStudents] = useState<Student[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.STUDENTS);
-    return saved ? JSON.parse(saved) : initialSeed.students;
+    const list = saved ? JSON.parse(saved) : initialSeed.students;
+    return [...list].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
   });
 
   const [bookings, setBookings] = useState<Booking[]>(() => {
@@ -310,7 +311,7 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
     fetchAllDataFromSupabase().then(async (cloudData) => {
       if (!isMounted) return;
       if (cloudData && cloudData.students.length > 0) {
-        setStudents(cloudData.students);
+        setStudents([...cloudData.students].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko')));
         setBookings(cloudData.bookings);
         setAbsences(cloudData.absences);
         setLocks(cloudData.locks);
@@ -320,7 +321,7 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
         await seedInitialDataToSupabase(initialSeed);
         const refreshed = await fetchAllDataFromSupabase();
         if (isMounted && refreshed) {
-          setStudents(refreshed.students);
+          setStudents([...refreshed.students].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko')));
           setBookings(refreshed.bookings);
           setAbsences(refreshed.absences);
           setLocks(refreshed.locks);
