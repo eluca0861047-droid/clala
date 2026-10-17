@@ -96,7 +96,7 @@ export const TopDemoBar: React.FC = () => {
             type="button"
             onClick={goToAdminHome}
             className="flex items-center gap-2.5 shrink-0 text-left group cursor-pointer transition-transform active:scale-[0.98]"
-            title="클릭 시 원장님 관리자 첫 화면으로 이동"
+            title="클릭 시 원장님 모드 첫 화면으로 이동"
           >
             <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white p-0.5 flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.2)] group-hover:shadow-[0_2px_12px_rgba(255,255,255,0.3)] border border-white/20 shrink-0 overflow-hidden transition-all">
               <img
@@ -111,7 +111,7 @@ export const TopDemoBar: React.FC = () => {
                   숙명클라라피아노
                 </span>
                 <span className="hidden sm:inline-flex items-center text-[10px] font-semibold bg-white/10 text-white/80 border border-white/10 px-2 py-0.5 rounded-full">
-                  원장님 관리자
+                  원장님 모드
                 </span>
                 {isCloudConnected ? (
                   <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#34c759] bg-[#34c759]/15 border border-[#34c759]/25 px-2 py-0.5 rounded-full" title="Supabase 실시간 클라우드 DB 연결 완료">
@@ -216,20 +216,20 @@ export const TopDemoBar: React.FC = () => {
                   </div>
                 </div>
 
-                {/* 2. 원장님 관리자 전환 버튼 */}
+                {/* 2. 원장님 모드 전환 버튼 */}
                 <button
                   type="button"
                   onClick={() => setAppMode('admin')}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-[13px] font-semibold text-white/70 hover:text-white hover:bg-white/[0.06] transition-all cursor-pointer active:scale-[0.98]"
-                  title="원장님 관리자 화면으로 전환"
+                  title="원장님 모드 화면으로 전환"
                 >
                   <Monitor className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0071e3] shrink-0" />
-                  <span>원장님 관리자</span>
+                  <span>원장님 모드</span>
                   <span className="hidden md:inline text-[10px] opacity-60 font-normal">(와이드)</span>
                 </button>
               </>
             ) : (
-              /* 원장님 관리자 모드일 때: Apple Segmented Control */
+              /* 원장님 모드일 때: Apple Segmented Control */
               <>
                 <button
                   type="button"
@@ -253,7 +253,7 @@ export const TopDemoBar: React.FC = () => {
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-[13px] font-bold bg-white text-[#1d1d1f] shadow-[0_2px_10px_rgba(0,0,0,0.18),0_1px_2px_rgba(0,0,0,0.08)] transition-all cursor-default"
                 >
                   <Monitor className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0071e3] shrink-0" />
-                  <span>원장님 관리자</span>
+                  <span>원장님 모드</span>
                   <span className="hidden md:inline text-[10px] text-[#1d1d1f]/50 font-normal">(와이드)</span>
                 </button>
               </>

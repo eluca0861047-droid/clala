@@ -14,6 +14,7 @@ import {
   Search,
   ArrowUp,
   ArrowDown,
+  RefreshCw,
 } from 'lucide-react';
 
 export const StudentManagement: React.FC = () => {
@@ -23,6 +24,7 @@ export const StudentManagement: React.FC = () => {
     removeRegularSlot,
     createStudent,
     deleteStudent,
+    regenerateAccessCode,
     getStudentShareUrl,
     addToast,
   } = useReservation();
@@ -362,9 +364,19 @@ const getChosung = (str: string): string => {
                         타 학생 차단
                       </span>
                     </span>
-                    <span className="text-[10px] font-mono text-[#0071e3]/80">
-                      코드: {student.accessCode || student.id}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-mono font-bold text-[#0071e3] bg-white/80 px-2 py-0.5 rounded-md border border-[#0071e3]/20 shadow-2xs">
+                        코드: {student.accessCode || student.id}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => regenerateAccessCode(student.id)}
+                        className="p-1 rounded-md bg-white/60 hover:bg-white text-[#0071e3]/70 hover:text-[#0071e3] border border-[#0071e3]/15 transition-all cursor-pointer active:scale-90"
+                        title="새로운 보안 접속 코드 재발급 (**-xxxxx)"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-1.5">

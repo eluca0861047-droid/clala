@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Student,
   Booking,
@@ -21,6 +21,7 @@ import {
   getWeekdays,
 } from '../utils/dateUtils';
 import { getInitialSeedData } from '../utils/seedData';
+import { generateStudentAccessCode, isLegacyAccessCode } from '../utils/codeUtils';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import {
   fetchAllDataFromSupabase,
@@ -104,6 +105,7 @@ interface ReservationContextType {
   removeRegularSlot: (studentId: string, dayOfWeek: DayOfWeek, time: string) => void;
   createStudent: (name: string, grade: string, phone: string) => void;
   deleteStudent: (studentId: string) => void;
+  regenerateAccessCode: (studentId: string) => void;
 
   // Reset & Toast
   resetData: () => void;
@@ -361,6 +363,30 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
   }, [initialSeed]);
 
+  // 3. 기존 구형 코드(mj-2026 등 -2026으로 끝나거나 st-로 시작하는 코드)를 **-xxxxx 보안 코드로 자동 최신화
+  const hasNormalizedCodesRef = useRef(false);
+  useEffect(() => {
+    if (hasNormalizedCodesRef.current || students.length === 0) return;
+    const legacyStudents = students.filter((s) => isLegacyAccessCode(s.accessCode));
+    if (legacyStudents.length > 0) {
+      hasNormalizedCodesRef.current = true;
+      setStudents((prev) => {
+        const updated = prev.map((s) => {
+          if (isLegacyAccessCode(s.accessCode)) {
+            const newCode = generateStudentAccessCode(s.name);
+            const upgraded = { ...s, accessCode: newCode };
+            dbUpsertStudent(upgraded).catch(console.error);
+            return upgraded;
+          }
+          return s;
+        });
+        return updated;
+      });
+    } else {
+      hasNormalizedCodesRef.current = true;
+    }
+  }, [students]);
+
   const addToast = useCallback((type: ToastMessage['type'], title: string, message: string) => {
     const id = 'toast_' + Math.random().toString(36).substring(2, 9);
     setToasts((prev) => [...prev, { id, type, title, message }]);
@@ -381,7 +407,7 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-    addToast('info', '원장님 관리자 첫 화면', '주간 타임테이블 첫 화면으로 이동했습니다.');
+    addToast('info', '원장님 모드 첫 화면', '주간 타임테이블 첫 화면으로 이동했습니다.');
   }, [appMode, addToast]);
 
   const currentStudent = useMemo(() => {
@@ -1000,10 +1026,11 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
   );
 
   /**
-   * 신규 학생 등록
+   * 신규 학생 등록 (보안 강화: **-xxxxx 고유 코드 발급)
    */
   const createStudent = useCallback(
     (name: string, grade: string, phone: string) => {
+      const newCode = generateStudentAccessCode(name);
       const newStudent: Student = {
         id: 'student_' + Date.now(),
         name,
@@ -1012,16 +1039,38 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
         makeupTickets: 0,
         regularSlots: [],
         avatarBg: 'bg-indigo-100 text-indigo-700',
-        accessCode: 'st-' + Math.random().toString(36).substring(2, 7),
+        accessCode: newCode,
       };
       setStudents((prev) => [...prev, newStudent]);
 
       // Supabase 클라우드 동기화
       dbUpsertStudent(newStudent).catch(console.error);
 
-      addToast('success', '학생 등록 완료', `${name} 학생이 새로 등록되었습니다.`);
+      addToast('success', '학생 등록 완료', `${name} 학생이 새로 등록되었습니다. (보안코드: ${newCode})`);
     },
     [addToast]
+  );
+
+  /**
+   * 특정 학생의 접속 코드를 새로운 **-xxxxx 보안 코드로 재발급
+   */
+  const regenerateAccessCode = useCallback(
+    (studentId: string) => {
+      const st = students.find((s) => s.id === studentId);
+      if (!st) return;
+      const newCode = generateStudentAccessCode(st.name);
+      const updatedStudent: Student = { ...st, accessCode: newCode };
+      setStudents((prev) =>
+        prev.map((s) => (s.id === studentId ? updatedStudent : s))
+      );
+      dbUpsertStudent(updatedStudent).catch(console.error);
+      addToast(
+        'success',
+        '보안 코드 재발급 완료',
+        `${st.name} 학생의 새 보안 코드가 발급되었습니다: ${newCode}`
+      );
+    },
+    [students, addToast]
   );
 
   /**
@@ -1110,6 +1159,7 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
     removeRegularSlot,
     createStudent,
     deleteStudent,
+    regenerateAccessCode,
     resetData,
     toasts,
     addToast,

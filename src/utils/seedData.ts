@@ -25,7 +25,7 @@ export function getInitialSeedData(referenceDate: Date = new Date()) {
         { dayOfWeek: 5, time: '15:00' }, // 금 15:00 (1명 배정)
       ],
       avatarBg: 'bg-blue-100 text-blue-700',
-      accessCode: 'mj-2026',
+      accessCode: 'mj-7k3xp',
     },
     {
       id: 'student-2',
@@ -39,7 +39,7 @@ export function getInitialSeedData(referenceDate: Date = new Date()) {
         { dayOfWeek: 5, time: '14:00' }, // 금 14:00 (1명 배정)
       ],
       avatarBg: 'bg-rose-100 text-rose-700',
-      accessCode: 'sy-2026',
+      accessCode: 'sy-9w4af',
     },
     {
       id: 'student-3',
@@ -54,7 +54,7 @@ export function getInitialSeedData(referenceDate: Date = new Date()) {
         { dayOfWeek: 4, time: '13:30' }, // 목 13:30
       ],
       avatarBg: 'bg-emerald-100 text-emerald-700',
-      accessCode: 'dy-2026',
+      accessCode: 'dy-3m8qz',
     },
     {
       id: 'student-4',
@@ -68,7 +68,7 @@ export function getInitialSeedData(referenceDate: Date = new Date()) {
         { dayOfWeek: 5, time: '16:30' }, // 금 16:30
       ],
       avatarBg: 'bg-purple-100 text-purple-700',
-      accessCode: 'he-2026',
+      accessCode: 'he-5v7tn',
     },
     {
       id: 'student-5',
@@ -81,7 +81,7 @@ export function getInitialSeedData(referenceDate: Date = new Date()) {
         { dayOfWeek: 5, time: '17:00' }, // 금 17:00
       ],
       avatarBg: 'bg-amber-100 text-amber-700',
-      accessCode: 'su-2026',
+      accessCode: 'su-4n2kw',
     },
   ];
 
