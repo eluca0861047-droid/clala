@@ -12,6 +12,8 @@ import {
   Share2,
   ExternalLink,
   Search,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 
 export const StudentManagement: React.FC = () => {
@@ -27,7 +29,28 @@ export const StudentManagement: React.FC = () => {
 
   // 정렬 및 검색 상태
   const [sortBy, setSortBy] = useState<'name' | 'grade'>('name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // 가나다순 클릭 핸들러 (처음엔 오름차순, 다시 누르면 내림차순 토글 반복)
+  const handleSortByName = () => {
+    if (sortBy === 'name') {
+      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy('name');
+      setSortOrder('asc');
+    }
+  };
+
+  // 학년순 클릭 핸들러 (처음엔 오름차순(저학년순), 다시 누르면 내림차순(고학년순) 토글 반복)
+  const handleSortByGrade = () => {
+    if (sortBy === 'grade') {
+      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy('grade');
+      setSortOrder('asc');
+    }
+  };
 
   // 학년 정렬 가중치 계산 (유치부 < 초1~초6 < 중1~중3 < 고등 < 성인)
   const getGradeRank = (gradeStr?: string): number => {
@@ -44,35 +67,70 @@ export const StudentManagement: React.FC = () => {
     return 100;
   };
 
+// 한글 초성 추출 헬퍼 (초성 검색 지원: 'ㄱㅁㅈ' -> '김민준')
+const CHOSUNG_LIST = [
+  'ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'
+];
+const getChosung = (str: string): string => {
+  let chosung = '';
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i) - 44032;
+    if (code >= 0 && code <= 11171) {
+      chosung += CHOSUNG_LIST[Math.floor(code / 588)];
+    } else {
+      chosung += str.charAt(i);
+    }
+  }
+  return chosung.toLowerCase();
+};
+
   // 검색 및 정렬된 원생 목록
   const displayedStudents = useMemo(() => {
     let list = [...students];
 
-    // 1. 이름 또는 학년 검색 필터링
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      list = list.filter(
-        (s) =>
-          s.name.toLowerCase().includes(q) ||
-          s.grade.toLowerCase().includes(q) ||
-          s.phone.replace(/[^0-9]/g, '').includes(q.replace(/[^0-9]/g, ''))
-      );
+    // 1. 이름, 학년, 전화번호, 고유코드 검색 필터링
+    const trimmedQuery = searchQuery.trim().toLowerCase();
+    if (trimmedQuery) {
+      const qDigits = trimmedQuery.replace(/[^0-9]/g, '');
+      const qChosung = getChosung(trimmedQuery);
+
+      list = list.filter((s) => {
+        const name = (s.name || '').toLowerCase();
+        const grade = (s.grade || '').toLowerCase();
+        const phone = (s.phone || '').replace(/[^0-9]/g, '');
+        const accessCode = (s.accessCode || '').toLowerCase();
+        const nameChosung = getChosung(name);
+
+        const nameMatch = name.includes(trimmedQuery) || (qChosung.length > 0 && nameChosung.includes(qChosung));
+        const gradeMatch = grade.includes(trimmedQuery);
+        const codeMatch = accessCode.includes(trimmedQuery);
+        const phoneMatch = qDigits.length >= 2 && phone.includes(qDigits);
+
+        return nameMatch || gradeMatch || codeMatch || phoneMatch;
+      });
     }
 
-    // 2. 정렬 (가나다순 vs 학년순)
+    // 2. 정렬 (가나다순 vs 학년순, 오름차순 vs 내림차순)
     if (sortBy === 'grade') {
       list.sort((a, b) => {
         const rankDiff = getGradeRank(a.grade) - getGradeRank(b.grade);
-        if (rankDiff !== 0) return rankDiff;
-        return a.name.localeCompare(b.name, 'ko');
+        if (rankDiff !== 0) {
+          return sortOrder === 'asc' ? rankDiff : -rankDiff;
+        }
+        // 학년이 같을 때 이름 정렬
+        const nameCmp = (a.name || '').localeCompare(b.name || '', 'ko');
+        return sortOrder === 'asc' ? nameCmp : -nameCmp;
       });
     } else {
-      // 기본: 가나다순
-      list.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+      // 기본: 가나다순 (오름차순 ㄱ->ㅎ / 내림차순 ㅎ->ㄱ)
+      list.sort((a, b) => {
+        const nameCmp = (a.name || '').localeCompare(b.name || '', 'ko');
+        return sortOrder === 'asc' ? nameCmp : -nameCmp;
+      });
     }
 
     return list;
-  }, [students, searchQuery, sortBy]);
+  }, [students, searchQuery, sortBy, sortOrder]);
 
   // 신규 원생 등록 모달
   const [isNewStudentModalOpen, setIsNewStudentModalOpen] = useState(false);
@@ -158,25 +216,53 @@ export const StudentManagement: React.FC = () => {
           <div className="bg-black/[0.04] p-1 rounded-[14px] flex items-center border border-black/[0.02]">
             <button
               type="button"
-              onClick={() => setSortBy('name')}
-              className={`px-3 py-1 rounded-[10px] text-xs font-semibold transition-all cursor-pointer ${
+              onClick={handleSortByName}
+              className={`px-3 py-1 rounded-[10px] text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                 sortBy === 'name'
                   ? 'bg-white text-[#1d1d1f] shadow-xs font-bold'
                   : 'text-[#86868b] hover:text-[#1d1d1f]'
               }`}
+              title={
+                sortBy === 'name'
+                  ? sortOrder === 'asc'
+                    ? '현재: 가나다 오름차순 (클릭 시 내림차순)'
+                    : '현재: 가나다 내림차순 (클릭 시 오름차순)'
+                  : '가나다순 정렬'
+              }
             >
-              가나다순
+              <span>가나다순</span>
+              {sortBy === 'name' && (
+                sortOrder === 'asc' ? (
+                  <ArrowUp className="w-3 h-3 text-[#0071e3] stroke-[2.5]" />
+                ) : (
+                  <ArrowDown className="w-3 h-3 text-[#0071e3] stroke-[2.5]" />
+                )
+              )}
             </button>
             <button
               type="button"
-              onClick={() => setSortBy('grade')}
-              className={`px-3 py-1 rounded-[10px] text-xs font-semibold transition-all cursor-pointer ${
+              onClick={handleSortByGrade}
+              className={`px-3 py-1 rounded-[10px] text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
                 sortBy === 'grade'
                   ? 'bg-white text-[#1d1d1f] shadow-xs font-bold'
                   : 'text-[#86868b] hover:text-[#1d1d1f]'
               }`}
+              title={
+                sortBy === 'grade'
+                  ? sortOrder === 'asc'
+                    ? '현재: 저학년순 (클릭 시 고학년순)'
+                    : '현재: 고학년순 (클릭 시 저학년순)'
+                  : '학년순 정렬'
+              }
             >
-              학년순
+              <span>학년순</span>
+              {sortBy === 'grade' && (
+                sortOrder === 'asc' ? (
+                  <ArrowUp className="w-3 h-3 text-[#0071e3] stroke-[2.5]" />
+                ) : (
+                  <ArrowDown className="w-3 h-3 text-[#0071e3] stroke-[2.5]" />
+                )
+              )}
             </button>
           </div>
 
@@ -192,7 +278,9 @@ export const StudentManagement: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="원생 검색"
+            placeholder="원생 검색 (이름, 초성, 학년, 전화번호)"
+            autoComplete="off"
+            spellCheck={false}
             className="w-full pl-9 pr-7 py-1.5 rounded-full bg-black/[0.04] hover:bg-black/[0.06] focus:bg-white text-xs font-medium text-[#1d1d1f] placeholder:text-[#86868b] border border-black/[0.06] focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20 focus:outline-none transition-all shadow-2xs"
           />
           {searchQuery && (

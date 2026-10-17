@@ -5,7 +5,6 @@ import {
   Smartphone,
   Monitor,
   Calendar,
-  Lock,
   Share2,
 } from 'lucide-react';
 import { parseDate, DAY_NAMES } from '../../utils/dateUtils';
@@ -65,23 +64,11 @@ export const TopDemoBar: React.FC = () => {
               />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-sm tracking-tight text-white">
-                  숙명클라라피아노
-                </span>
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-white/10 text-white/90 border border-white/15 px-2 py-0.5 rounded-full">
-                  <Lock className="w-2.5 h-2.5 text-[#34c759]" />
-                  {currentStudent.name} 학생 전용
-                </span>
-              </div>
+              <span className="font-semibold text-sm tracking-tight text-white">
+                숙명클라라피아노
+              </span>
             </div>
           </div>
-
-          {/* Apple Privacy Badge */}
-          <span className="text-[11px] font-medium text-white/70 bg-white/[0.08] border border-white/[0.1] px-2.5 py-1 rounded-full flex items-center gap-1.5 cursor-default select-none">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#34c759] animate-pulse"></span>
-            <span>보안 안심 모드</span>
-          </span>
         </div>
       </header>
     );
