@@ -90,9 +90,9 @@ export const WeeklyTimetable: React.FC = () => {
       <div className="hidden print:block mb-1 pb-1 border-b border-slate-800">
         <div className="flex items-center justify-between leading-tight">
           <div className="flex items-center gap-2">
-            <span className="text-base">🎹</span>
+            <img src="/logo.png" alt="숙명클라라피아노" className="w-5 h-5 object-contain" />
             <h1 className="text-sm font-black text-slate-900 tracking-tight">
-              클라라피아노 주간 레슨 시간표
+              숙명클라라피아노 주간 레슨 시간표
             </h1>
             <span className="text-[10px] font-bold text-indigo-700 ml-2">
               ({weekTitle})
@@ -102,7 +102,7 @@ export const WeeklyTimetable: React.FC = () => {
             </span>
           </div>
           <div className="text-right text-[9px] text-slate-500 leading-none">
-            출력일: {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' })} · 클라라피아노 원장실
+            출력일: {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' })} · 숙명클라라피아노 원장실
           </div>
         </div>
 

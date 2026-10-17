@@ -20,6 +20,21 @@ import {
   getWeekdays,
 } from '../utils/dateUtils';
 import { getInitialSeedData } from '../utils/seedData';
+import { isSupabaseConfigured, supabase } from '../lib/supabase';
+import {
+  fetchAllDataFromSupabase,
+  seedInitialDataToSupabase,
+  dbUpsertBooking,
+  dbDeleteBooking,
+  dbUpsertAbsence,
+  dbDeleteAbsence,
+  dbUpsertSlotLock,
+  dbDeleteSlotLock,
+  dbUpsertStudent,
+  dbDeleteStudent,
+  dbInsertLog,
+  dbResetAllData,
+} from '../services/supabaseService';
 
 export interface ToastMessage {
   id: string;
@@ -99,6 +114,9 @@ interface ReservationContextType {
   setAdminTab: (tab: 'timetable' | 'students') => void;
   adminHomeTimestamp: number;
   goToAdminHome: () => void;
+
+  // Cloud Database Status
+  isCloudConnected: boolean;
 }
 
 const STORAGE_KEYS = {
@@ -279,6 +297,66 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
       sessionStorage.setItem('pianoslot_simulated_today_v1', simulatedToday);
     }
   }, [simulatedToday]);
+
+  // Supabase Cloud Data Synchronizer & Realtime Subscriptions
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return;
+
+    let isMounted = true;
+
+    // 1. 초기 클라우드 데이터 로드 & 시딩 검사
+    fetchAllDataFromSupabase().then(async (cloudData) => {
+      if (!isMounted) return;
+      if (cloudData && cloudData.students.length > 0) {
+        setStudents(cloudData.students);
+        setBookings(cloudData.bookings);
+        setAbsences(cloudData.absences);
+        setLocks(cloudData.locks);
+        setLogs(cloudData.logs);
+      } else if (cloudData && cloudData.students.length === 0) {
+        // 클라우드 DB 테이블이 비어있으면 초기 샘플 데이터 시딩
+        await seedInitialDataToSupabase(initialSeed);
+        const refreshed = await fetchAllDataFromSupabase();
+        if (isMounted && refreshed) {
+          setStudents(refreshed.students);
+          setBookings(refreshed.bookings);
+          setAbsences(refreshed.absences);
+          setLocks(refreshed.locks);
+          setLogs(refreshed.logs);
+        }
+      }
+    });
+
+    // 2. 실시간(Realtime) 변경 사항 구독 (학부모 모바일 예약 시 원장님 PC 즉각 반영)
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, async () => {
+        const d = await fetchAllDataFromSupabase();
+        if (isMounted && d) setBookings(d.bookings);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'absences' }, async () => {
+        const d = await fetchAllDataFromSupabase();
+        if (isMounted && d) setAbsences(d.absences);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, async () => {
+        const d = await fetchAllDataFromSupabase();
+        if (isMounted && d) setStudents(d.students);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'slot_locks' }, async () => {
+        const d = await fetchAllDataFromSupabase();
+        if (isMounted && d) setLocks(d.locks);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_logs' }, async () => {
+        const d = await fetchAllDataFromSupabase();
+        if (isMounted && d) setLogs(d.logs);
+      })
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase?.removeChannel(channel);
+    };
+  }, [initialSeed]);
 
   const addToast = useCallback((type: ToastMessage['type'], title: string, message: string) => {
     const id = 'toast_' + Math.random().toString(36).substring(2, 9);
@@ -536,6 +614,11 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
       };
 
       setLogs((prev) => [newLog, ...prev]);
+
+      // Supabase 클라우드 동기화
+      dbUpsertBooking(newBooking).catch(console.error);
+      dbInsertLog(newLog).catch(console.error);
+
       addToast(
         'success',
         '예약 완료',
@@ -582,6 +665,11 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
       };
 
       setLogs((prev) => [newLog, ...prev]);
+
+      // Supabase 클라우드 동기화
+      dbDeleteBooking(bookingId).catch(console.error);
+      dbInsertLog(newLog).catch(console.error);
+
       addToast(
         'info',
         '예약 취소 완료',
@@ -648,6 +736,11 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
       };
 
       setLogs((prev) => [newLog, ...prev]);
+
+      // Supabase 클라우드 동기화
+      dbUpsertAbsence(newAbsence).catch(console.error);
+      dbInsertLog(newLog).catch(console.error);
+
       addToast(
         'success',
         '결석 신청 완료',
@@ -689,6 +782,11 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
         createdAt: new Date().toISOString(),
       };
       setLogs((prev) => [newLog, ...prev]);
+
+      // Supabase 클라우드 동기화
+      dbDeleteAbsence(absenceId).catch(console.error);
+      dbInsertLog(newLog).catch(console.error);
+
       addToast('info', '결석 취소', '정규 수업으로 복귀되었습니다.');
 
       return { success: true };
@@ -711,17 +809,19 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
       if (existing) {
         // 잠금 해제
         setLocks((prev) => prev.filter((l) => l.id !== existing.id));
+        const newLog: ActivityLog = {
+          id: 'log_' + Date.now(),
+          type: 'admin',
+          message: `[원장님] [${date || '매일'} ${time}] 슬롯 잠금을 해제했습니다.`,
+          timestamp: '방금 전',
+          createdAt: new Date().toISOString(),
+        };
         addToast('info', '잠금 해제', `${date || '매일'} ${time} 슬롯이 오픈되었습니다.`);
-        setLogs((prev) => [
-          {
-            id: 'log_' + Date.now(),
-            type: 'admin',
-            message: `[원장님] [${date || '매일'} ${time}] 슬롯 잠금을 해제했습니다.`,
-            timestamp: '방금 전',
-            createdAt: new Date().toISOString(),
-          },
-          ...prev,
-        ]);
+        setLogs((prev) => [newLog, ...prev]);
+
+        // Supabase 클라우드 동기화
+        dbDeleteSlotLock(existing.id).catch(console.error);
+        dbInsertLog(newLog).catch(console.error);
       } else {
         // 잠금 등록
         const newLock: SlotLock = {
@@ -732,18 +832,20 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
           reason: reason || '원장님 잠금 (개인용무/휴식)',
           createdAt: new Date().toISOString(),
         };
+        const newLog: ActivityLog = {
+          id: 'log_' + Date.now(),
+          type: 'admin',
+          message: `[원장님] [${date || '매일'} ${time}] 슬롯을 잠갔습니다. (${reason || '개인용무'})`,
+          timestamp: '방금 전',
+          createdAt: new Date().toISOString(),
+        };
         setLocks((prev) => [...prev, newLock]);
         addToast('warning', '슬롯 잠금', `${date || '매일'} ${time} 슬롯이 예약 불가 상태로 잠겼습니다.`);
-        setLogs((prev) => [
-          {
-            id: 'log_' + Date.now(),
-            type: 'admin',
-            message: `[원장님] [${date || '매일'} ${time}] 슬롯을 잠갔습니다. (${reason || '개인용무'})`,
-            timestamp: '방금 전',
-            createdAt: new Date().toISOString(),
-          },
-          ...prev,
-        ]);
+        setLogs((prev) => [newLog, ...prev]);
+
+        // Supabase 클라우드 동기화
+        dbUpsertSlotLock(newLock).catch(console.error);
+        dbInsertLog(newLog).catch(console.error);
       }
     },
     [locks, addToast]
@@ -758,22 +860,28 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
       if (!st) return;
       const nextCount = Math.max(0, st.makeupTickets + delta);
 
+      const updatedStudent = { ...st, makeupTickets: nextCount };
       setStudents((prev) =>
-        prev.map((s) => (s.id === studentId ? { ...s, makeupTickets: nextCount } : s))
+        prev.map((s) => (s.id === studentId ? updatedStudent : s))
       );
 
       const sign = delta > 0 ? `+${delta}` : `${delta}`;
+      const newLog: ActivityLog = {
+        id: 'log_' + Date.now(),
+        type: 'ticket',
+        message: `[원장님] ${st.name} 학생의 보강권을 수동 조정했습니다 (${sign}회, 총 ${nextCount}회).`,
+        timestamp: '방금 전',
+        studentName: st.name,
+        createdAt: new Date().toISOString(),
+      };
+
+      setLogs((prev) => [newLog, ...prev]);
+
+      // Supabase 클라우드 동기화
+      dbUpsertStudent(updatedStudent).catch(console.error);
+      dbInsertLog(newLog).catch(console.error);
+
       addToast('info', '보강권 변경', `${st.name} 학생의 보강권이 ${nextCount}회로 변경되었습니다.`);
-      setLogs((prev) => [
-        {
-          id: 'log_' + Date.now(),
-          type: 'ticket',
-          message: `[원장님] ${st.name} 학생의 보강권을 수동 조정했습니다 (${sign}회, 총 ${nextCount}회).`,
-          timestamp: '방금 전',
-          createdAt: new Date().toISOString(),
-        },
-        ...prev,
-      ]);
     },
     [students, addToast]
   );
@@ -809,13 +917,19 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
         };
       }
 
+      const updatedStudent: Student = {
+        ...student,
+        regularSlots: [...student.regularSlots, { dayOfWeek, time }],
+      };
+
       setStudents((prev) =>
         prev.map((s) =>
-          s.id === studentId
-            ? { ...s, regularSlots: [...s.regularSlots, { dayOfWeek, time }] }
-            : s
+          s.id === studentId ? updatedStudent : s
         )
       );
+
+      // Supabase 클라우드 동기화
+      dbUpsertStudent(updatedStudent).catch(console.error);
 
       addToast('success', '정규 수업 추가', `${student.name} 학생의 정규 수업이 추가되었습니다. (동시간대 ${currentRegularCount + 1}/4명)`);
       return { success: true };
@@ -828,21 +942,28 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
    */
   const removeRegularSlot = useCallback(
     (studentId: string, dayOfWeek: DayOfWeek, time: string) => {
+      const student = students.find((s) => s.id === studentId);
+      if (!student) return;
+
+      const updatedStudent: Student = {
+        ...student,
+        regularSlots: student.regularSlots.filter(
+          (slot) => !(slot.dayOfWeek === dayOfWeek && slot.time === time)
+        ),
+      };
+
       setStudents((prev) =>
         prev.map((s) =>
-          s.id === studentId
-            ? {
-                ...s,
-                regularSlots: s.regularSlots.filter(
-                  (slot) => !(slot.dayOfWeek === dayOfWeek && slot.time === time)
-                ),
-              }
-            : s
+          s.id === studentId ? updatedStudent : s
         )
       );
+
+      // Supabase 클라우드 동기화
+      dbUpsertStudent(updatedStudent).catch(console.error);
+
       addToast('info', '정규 수업 삭제', '정규 수업이 삭제되었습니다.');
     },
-    [addToast]
+    [students, addToast]
   );
 
   /**
@@ -858,8 +979,13 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
         makeupTickets: 0,
         regularSlots: [],
         avatarBg: 'bg-indigo-100 text-indigo-700',
+        accessCode: 'st-' + Math.random().toString(36).substring(2, 7),
       };
       setStudents((prev) => [...prev, newStudent]);
+
+      // Supabase 클라우드 동기화
+      dbUpsertStudent(newStudent).catch(console.error);
+
       addToast('success', '학생 등록 완료', `${name} 학생이 새로 등록되었습니다.`);
     },
     [addToast]
@@ -878,6 +1004,10 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
       if (currentStudentId === studentId) {
         setCurrentStudentId(students[0]?.id || '');
       }
+
+      // Supabase 클라우드 동기화
+      dbDeleteStudent(studentId).catch(console.error);
+
       addToast('info', '학생 삭제', `${st.name} 학생이 삭제되었습니다.`);
     },
     [students, currentStudentId, addToast]
@@ -910,6 +1040,9 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
     localStorage.removeItem(STORAGE_KEYS.CURRENT_STUDENT);
     localStorage.removeItem(STORAGE_KEYS.APP_MODE);
     localStorage.removeItem(STORAGE_KEYS.SIMULATED_TODAY);
+
+    // Supabase 클라우드 DB 전체 리셋 (연결된 경우)
+    dbResetAllData(seed).catch(console.error);
 
     addToast('info', '데이터 리셋 완료', '모든 시간표와 예약 내역이 초기 샘플 상태로 복원되었습니다.');
   }, [defaultTodayStr, addToast]);
@@ -951,6 +1084,7 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setAdminTab,
     adminHomeTimestamp,
     goToAdminHome,
+    isCloudConnected: isSupabaseConfigured,
   };
 
   return <ReservationContext.Provider value={value}>{children}</ReservationContext.Provider>;

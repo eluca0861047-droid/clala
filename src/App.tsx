@@ -27,7 +27,10 @@ const AppContent: React.FC = () => {
 
       {/* 4. 푸터 (Apple Minimalist Glass Footer) */}
       <footer className="no-print border-t border-black/[0.05] bg-white/60 backdrop-blur-md py-6 text-center text-xs text-[#86868b]">
-        <p className="font-semibold text-[#1d1d1f] tracking-tight">🎹 클라라피아노 · 스마트 예약 & 보강 관리 시스템</p>
+        <p className="font-semibold text-[#1d1d1f] tracking-tight flex items-center justify-center gap-1.5">
+          <img src="/logo.png" alt="숙명클라라피아노" className="w-4 h-4 object-contain inline-block" />
+          <span>숙명클라라피아노 · 스마트 예약 & 보강 관리 시스템</span>
+        </p>
         <p className="text-[11px] mt-1 text-[#86868b] tracking-normal">
           Apple Human Interface Design · React · TypeScript · Tailwind CSS
         </p>

@@ -1,10 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useReservation } from '../../context/ReservationContext';
 import { DayOfWeek } from '../../types';
 import {
   Smartphone,
   Monitor,
-  RotateCcw,
   Calendar,
   Lock,
   Share2,
@@ -21,13 +20,18 @@ export const TopDemoBar: React.FC = () => {
     currentStudent,
     simulatedToday,
     setSimulatedToday,
-    resetData,
     isParentDirectLink,
     getStudentShareUrl,
     exitParentDirectMode,
     goToAdminHome,
     addToast,
+    isCloudConnected,
   } = useReservation();
+
+  // 접속 학생 목록 가나다순(한국어 오름차순) 정렬
+  const sortedStudents = useMemo(() => {
+    return [...students].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  }, [students]);
 
   // 날짜 파싱 정보
   const todayDate = parseDate(simulatedToday);
@@ -53,13 +57,17 @@ export const TopDemoBar: React.FC = () => {
         <div className="max-w-md mx-auto flex items-center justify-between gap-3">
           {/* Apple Style Minimal Logo */}
           <div className="flex items-center gap-2.5 text-left select-none cursor-default">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#0071e3] to-[#47a3ff] flex items-center justify-center shadow-[0_2px_8px_rgba(0,113,227,0.35)]">
-              <span className="text-base">🎹</span>
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white p-0.5 flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.2)] border border-white/20 shrink-0 overflow-hidden">
+              <img
+                src="/logo.png"
+                alt="숙명클라라피아노 로고"
+                className="w-full h-full object-contain"
+              />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-sm tracking-tight text-white">
-                  클라라피아노
+                  숙명클라라피아노
                 </span>
                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-white/10 text-white/90 border border-white/15 px-2 py-0.5 rounded-full">
                   <Lock className="w-2.5 h-2.5 text-[#34c759]" />
@@ -91,32 +99,51 @@ export const TopDemoBar: React.FC = () => {
             className="flex items-center gap-2.5 shrink-0 text-left group cursor-pointer transition-transform active:scale-[0.98]"
             title="클릭 시 원장님 관리자 첫 화면으로 이동"
           >
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#0071e3] to-[#47a3ff] flex items-center justify-center shadow-[0_2px_10px_rgba(0,113,227,0.4)] group-hover:shadow-[0_2px_14px_rgba(0,113,227,0.6)] transition-all">
-              <span className="text-base">🎹</span>
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white p-0.5 flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.2)] group-hover:shadow-[0_2px_12px_rgba(255,255,255,0.3)] border border-white/20 shrink-0 overflow-hidden transition-all">
+              <img
+                src="/logo.png"
+                alt="숙명클라라피아노 로고"
+                className="w-full h-full object-contain"
+              />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-sm tracking-tight text-white group-hover:text-white/90 transition-colors">
-                  클라라피아노
+                  숙명클라라피아노
                 </span>
                 <span className="hidden sm:inline-flex items-center text-[10px] font-semibold bg-white/10 text-white/80 border border-white/10 px-2 py-0.5 rounded-full">
                   원장님 관리자
                 </span>
+                {isCloudConnected ? (
+                  <span className="hidden md:inline-flex items-center gap-1 text-[10px] font-semibold text-[#34c759] bg-[#34c759]/15 border border-[#34c759]/25 px-2 py-0.5 rounded-full" title="Supabase 실시간 클라우드 DB 연결 완료">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#34c759] animate-pulse" />
+                    클라우드 연동
+                  </span>
+                ) : (
+                  <span className="hidden md:inline-flex items-center gap-1 text-[10px] font-medium text-white/50 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full" title="로컬 저장소 모드 (Vercel 환경변수 등록 시 실시간 클라우드 DB 자동 활성화)">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    로컬 모드
+                  </span>
+                )}
               </div>
             </div>
           </button>
         ) : (
           <div
             className="flex items-center gap-2.5 shrink-0 text-left select-none cursor-default"
-            title="클라라피아노"
+            title="숙명클라라피아노"
           >
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#0071e3] to-[#47a3ff] flex items-center justify-center shadow-[0_2px_10px_rgba(0,113,227,0.4)]">
-              <span className="text-base">🎹</span>
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white p-0.5 flex items-center justify-center shadow-[0_2px_8px_rgba(0,0,0,0.2)] border border-white/20 shrink-0 overflow-hidden">
+              <img
+                src="/logo.png"
+                alt="숙명클라라피아노 로고"
+                className="w-full h-full object-contain"
+              />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-sm tracking-tight text-white">
-                  클라라피아노
+                  숙명클라라피아노
                 </span>
                 <span className="hidden sm:inline-flex items-center text-[10px] font-semibold bg-white/10 text-white/80 border border-white/10 px-2 py-0.5 rounded-full">
                   스마트 예약 & 보강
@@ -164,7 +191,7 @@ export const TopDemoBar: React.FC = () => {
                 onChange={(e) => setCurrentStudentId(e.target.value)}
                 className="bg-transparent text-xs sm:text-[13px] font-bold text-white focus:outline-none cursor-pointer pr-1"
               >
-                {students.map((st) => (
+                {sortedStudents.map((st) => (
                   <option key={st.id} value={st.id} className="bg-[#1d1d1f] text-white">
                     {st.name} ({st.grade})
                   </option>
@@ -185,7 +212,7 @@ export const TopDemoBar: React.FC = () => {
           )}
         </div>
 
-        {/* 우측: 시뮬레이션 날짜 및 리셋 버튼 (Apple Minimalist) */}
+        {/* 우측: 시뮬레이션 날짜 (Apple Minimalist) */}
         <div className="flex items-center gap-2">
           {/* 가상 오늘 날짜 표시 */}
           <div className="hidden lg:flex items-center gap-1.5 bg-white/[0.08] px-2.5 py-1 rounded-xl border border-white/[0.08] text-xs">
@@ -199,20 +226,6 @@ export const TopDemoBar: React.FC = () => {
             />
             <span className="text-white/90 font-bold">({dayName})</span>
           </div>
-
-          {/* 초기 샘플 데이터로 리셋 버튼 */}
-          <button
-            onClick={() => {
-              if (window.confirm('모든 데이터가 초기 샘플 상태로 복원됩니다. 계속하시겠습니까?')) {
-                resetData();
-              }
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white/[0.08] hover:bg-white/[0.15] text-white/80 hover:text-white border border-white/[0.08] transition-all active:scale-95"
-            title="초기 상태로 되돌리기"
-          >
-            <RotateCcw className="w-3.5 h-3.5 text-[#ff9500]" />
-            <span className="hidden sm:inline">데이터</span> 리셋
-          </button>
         </div>
       </div>
     </header>

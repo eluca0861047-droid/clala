@@ -52,8 +52,10 @@ export const SlotDetailModal: React.FC<SlotDetailModalProps> = ({
     ...slot.activeBookings.map((b) => b.booking.studentId),
   ]);
 
-  // 배정 가능한 학생 후보군 (중복 방지)
-  const candidateStudents = students.filter((s) => !assignedStudentIds.has(s.id));
+  // 배정 가능한 학생 후보군 (중복 방지 & 가나다순 정렬)
+  const candidateStudents = students
+    .filter((s) => !assignedStudentIds.has(s.id))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
   const effectiveSelectedStudentId =
     selectedStudentId || candidateStudents[0]?.id || students[0]?.id || '';
 

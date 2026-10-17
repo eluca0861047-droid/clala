@@ -12,7 +12,6 @@ import {
   Calendar,
   ChevronRight,
   Clock,
-  Sparkles,
 } from 'lucide-react';
 
 export const BookingTab: React.FC = () => {
@@ -36,9 +35,6 @@ export const BookingTab: React.FC = () => {
     const found = allDays.find((d) => d.dateStr === simulatedToday);
     return found ? found.dateStr : fourWeeks[0]?.days[0]?.dateStr || '';
   });
-
-  // 필터: 빈 시간만 보기 토글
-  const [onlyAvailable, setOnlyAvailable] = useState<boolean>(false);
 
   // 선택된 타임 슬롯
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
@@ -108,17 +104,8 @@ export const BookingTab: React.FC = () => {
     });
   }, [selectedDate, getSlot, currentStudent]);
 
-  // 빈 시간만 보기 필터링 적용
-  const displaySlots = useMemo(() => {
-    if (!onlyAvailable) return currentDaySlots;
-    return currentDaySlots.filter((s) => s.isSelectable);
-  }, [currentDaySlots, onlyAvailable]);
+  const displaySlots = currentDaySlots;
 
-  // 선택된 날짜의 빈 슬롯 개수
-  const availableCount = useMemo(() => {
-    if (!selectedDate) return 0;
-    return getAvailableCountForDay(selectedDate);
-  }, [selectedDate, getAvailableCountForDay]);
 
   const handleSlotClick = (time: string, isSelectable: boolean) => {
     if (!isSelectable) return;
@@ -137,16 +124,12 @@ export const BookingTab: React.FC = () => {
     <div className="space-y-4 pb-20">
       {/* 4주간 날짜 선택기 (주차 탭 + 5열 원터치 그리드) - Apple Continuous Card */}
       <div className="bg-white/90 backdrop-blur-xl p-4 rounded-[24px] shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-black/[0.06] space-y-3.5">
-        {/* 상단 타이틀 & 4주 예약 배지 */}
+        {/* 상단 타이틀 */}
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-1.5 text-xs font-bold text-[#1d1d1f]">
             <Calendar className="w-4 h-4 text-[#0071e3]" />
             <span>날짜 선택 (월~금)</span>
           </div>
-          <span className="text-[11px] font-semibold text-[#0071e3] bg-[#0071e3]/10 border border-[#0071e3]/20 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-            <Sparkles className="w-3 h-3 text-[#0071e3]" />
-            <span>4주간 예약 오픈</span>
-          </span>
         </div>
 
         {/* 1. 주차 선택 탭 (4열 Apple Segmented Pill) */}
@@ -236,40 +219,21 @@ export const BookingTab: React.FC = () => {
         </div>
       </div>
 
-      {/* 3. 필터 & 슬롯 카운트 바 */}
-      <div className="flex items-center justify-between px-1">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-[#1d1d1f]">
-            {parsedSelectedDay &&
-              `${parsedSelectedDay.getMonth() + 1}월 ${parsedSelectedDay.getDate()}일 (${
-                DAY_NAMES[selectedDayIndex] || ''
-              })`}
-          </span>
-          <span className="text-xs font-medium text-[#34c759] bg-[#34c759]/15 border border-[#34c759]/25 px-2.5 py-0.5 rounded-full">
-            빈 시간 {availableCount}
-          </span>
-        </div>
-
-        {/* 빈 시간만 보기 iOS 스위치 */}
-        <label className="flex items-center gap-2 cursor-pointer select-none">
-          <span className="text-xs text-[#86868b] font-medium">빈 시간만 보기</span>
-          <div className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={onlyAvailable}
-              onChange={(e) => setOnlyAvailable(e.target.checked)}
-              className="sr-only peer"
-            />
-            <div className="w-8 h-4.5 bg-black/[0.12] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-[#0071e3]"></div>
-          </div>
-        </label>
+      {/* 3. 선택 일자 헤더 */}
+      <div className="px-1">
+        <span className="text-xs font-bold text-[#1d1d1f]">
+          {parsedSelectedDay &&
+            `${parsedSelectedDay.getMonth() + 1}월 ${parsedSelectedDay.getDate()}일 (${
+              DAY_NAMES[selectedDayIndex] || ''
+            })`}
+        </span>
       </div>
 
       {/* 4. 30분 단위 타임 슬롯 그리드 (Apple Time Chips) - 3열 배치 */}
       <div className="bg-white/90 backdrop-blur-xl p-4 rounded-[24px] shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-black/[0.06]">
         {displaySlots.length === 0 ? (
           <div className="py-12 text-center text-[#86868b] text-xs">
-            {onlyAvailable ? '예약 가능한 빈 시간이 없습니다.' : '시간표 정보가 없습니다.'}
+            시간표 정보가 없습니다.
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-2.5">

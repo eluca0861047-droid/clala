@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useReservation } from '../../context/ReservationContext';
 import { DayOfWeek } from '../../types';
 import { DAY_NAMES, TIME_SLOTS } from '../../utils/dateUtils';
@@ -11,6 +11,7 @@ import {
   X,
   Share2,
   ExternalLink,
+  Search,
 } from 'lucide-react';
 
 export const StudentManagement: React.FC = () => {
@@ -23,6 +24,55 @@ export const StudentManagement: React.FC = () => {
     getStudentShareUrl,
     addToast,
   } = useReservation();
+
+  // 정렬 및 검색 상태
+  const [sortBy, setSortBy] = useState<'name' | 'grade'>('name');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // 학년 정렬 가중치 계산 (유치부 < 초1~초6 < 중1~중3 < 고등 < 성인)
+  const getGradeRank = (gradeStr?: string): number => {
+    if (!gradeStr) return 999;
+    const g = gradeStr.trim();
+    if (g.includes('유치') || g.includes('6세') || g.includes('7세')) return 0;
+    const matchCho = g.match(/초\s*([1-6])/);
+    if (matchCho) return parseInt(matchCho[1], 10);
+    const matchJung = g.match(/중\s*([1-3])/);
+    if (matchJung) return 10 + parseInt(matchJung[1], 10);
+    const matchGo = g.match(/고\s*([1-3])/);
+    if (matchGo) return 20 + parseInt(matchGo[1], 10);
+    if (g.includes('성인')) return 30;
+    return 100;
+  };
+
+  // 검색 및 정렬된 원생 목록
+  const displayedStudents = useMemo(() => {
+    let list = [...students];
+
+    // 1. 이름 또는 학년 검색 필터링
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      list = list.filter(
+        (s) =>
+          s.name.toLowerCase().includes(q) ||
+          s.grade.toLowerCase().includes(q) ||
+          s.phone.replace(/[^0-9]/g, '').includes(q.replace(/[^0-9]/g, ''))
+      );
+    }
+
+    // 2. 정렬 (가나다순 vs 학년순)
+    if (sortBy === 'grade') {
+      list.sort((a, b) => {
+        const rankDiff = getGradeRank(a.grade) - getGradeRank(b.grade);
+        if (rankDiff !== 0) return rankDiff;
+        return a.name.localeCompare(b.name, 'ko');
+      });
+    } else {
+      // 기본: 가나다순
+      list.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+    }
+
+    return list;
+  }, [students, searchQuery, sortBy]);
 
   // 신규 원생 등록 모달
   const [isNewStudentModalOpen, setIsNewStudentModalOpen] = useState(false);
@@ -79,9 +129,79 @@ export const StudentManagement: React.FC = () => {
         </button>
       </div>
 
+      {/* 검색 & 정렬 툴바 (Apple Inset Glass Toolbar) */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white/90 backdrop-blur-xl p-3 rounded-[20px] border border-black/[0.06] shadow-xs">
+        {/* 이름 검색 입력창 */}
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 text-[#86868b] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="학생 이름 또는 학년 검색..."
+            className="w-full pl-9.5 pr-8 py-2 rounded-[14px] bg-black/[0.04] focus:bg-white text-xs font-medium text-[#1d1d1f] placeholder:text-[#86868b] border border-transparent focus:border-[#0071e3] focus:outline-none transition-all shadow-inner"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[#86868b] hover:text-[#1d1d1f] cursor-pointer"
+              title="검색어 지우기"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* 정렬 방식 선택 (가나다순 / 학년순) & 총 인원수 */}
+        <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0">
+          <div className="bg-black/[0.04] p-1 rounded-[14px] flex items-center border border-black/[0.02] shadow-inner">
+            <button
+              type="button"
+              onClick={() => setSortBy('name')}
+              className={`px-3 py-1.5 rounded-[10px] text-xs font-semibold transition-all cursor-pointer ${
+                sortBy === 'name'
+                  ? 'bg-white text-[#1d1d1f] shadow-xs font-bold'
+                  : 'text-[#86868b] hover:text-[#1d1d1f]'
+              }`}
+            >
+              가나다순
+            </button>
+            <button
+              type="button"
+              onClick={() => setSortBy('grade')}
+              className={`px-3 py-1.5 rounded-[10px] text-xs font-semibold transition-all cursor-pointer ${
+                sortBy === 'grade'
+                  ? 'bg-white text-[#1d1d1f] shadow-xs font-bold'
+                  : 'text-[#86868b] hover:text-[#1d1d1f]'
+              }`}
+            >
+              학년순
+            </button>
+          </div>
+
+          <span className="text-xs font-semibold text-[#86868b] px-1 shrink-0">
+            총 {displayedStudents.length}명
+          </span>
+        </div>
+      </div>
+
       {/* 원생 카드 그리드 (Apple macOS Style Grid) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {students.map((student) => {
+      {displayedStudents.length === 0 ? (
+        <div className="bg-white/80 backdrop-blur-xl rounded-[24px] p-12 text-center border border-black/[0.06] text-[#86868b] text-xs">
+          <p className="font-semibold text-sm text-[#1d1d1f] mb-1">검색 결과가 없습니다</p>
+          <p>'{searchQuery}'에 해당하는 원생을 찾을 수 없습니다.</p>
+          <button
+            type="button"
+            onClick={() => setSearchQuery('')}
+            className="mt-3 text-xs text-[#0071e3] font-semibold hover:underline cursor-pointer"
+          >
+            검색어 초기화
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {displayedStudents.map((student) => {
           return (
             <div
               key={student.id}
@@ -220,6 +340,7 @@ export const StudentManagement: React.FC = () => {
           );
         })}
       </div>
+    )}
 
       {/* 모달 1: 신규 학생 등록 (Apple Action Sheet) */}
       {isNewStudentModalOpen && (
