@@ -292,6 +292,16 @@ export async function dbInsertLog(l: ActivityLog) {
   await supabase.from('activity_logs').insert(toDbActivityLog(l));
 }
 
+export async function dbPurgeOldLogs(cutoffIsoDate?: string) {
+  if (!supabase || !isSupabaseConfigured) return;
+  try {
+    const cutoff = cutoffIsoDate || new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
+    await supabase.from('activity_logs').delete().lt('created_at', cutoff);
+  } catch (err) {
+    console.warn('[Supabase] Failed to purge old activity_logs:', err);
+  }
+}
+
 export async function dbResetAllData(seed: {
   students: Student[];
   bookings: Booking[];

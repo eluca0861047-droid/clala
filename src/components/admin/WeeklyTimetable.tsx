@@ -7,6 +7,8 @@ import {
   getMondayOfWeek,
   getWeekdays,
   parseDate,
+  getNextSlotTime,
+  getEndTime,
 } from '../../utils/dateUtils';
 import { SlotDetailModal } from './SlotDetailModal';
 import {
@@ -16,6 +18,7 @@ import {
   Lock,
   Calendar,
   Printer,
+  CalendarDays,
 } from 'lucide-react';
 
 export const WeeklyTimetable: React.FC = () => {
@@ -36,6 +39,16 @@ export const WeeklyTimetable: React.FC = () => {
   // 현재 표시할 주의 월요일 상태
   const todayMonday = useMemo(() => getMondayOfWeek(parseDate(simulatedToday)), [simulatedToday]);
   const [currentMonday, setCurrentMonday] = useState<Date>(todayMonday);
+
+  // 뷰 모드 ('week' | 'day')
+  const [viewMode, setViewMode] = useState<'week' | 'day'>('week');
+
+  // 일간 뷰에서 선택된 요일 인덱스 (0: 월, 1: 화, 2: 수, 3: 목, 4: 금)
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number>(() => {
+    const d = parseDate(simulatedToday);
+    const dayOfWeek = d.getDay(); // 0=Sun, 1=Mon, ..., 5=Fri
+    return dayOfWeek >= 1 && dayOfWeek <= 5 ? dayOfWeek - 1 : 0;
+  });
 
   // 선택된 슬롯 (모달용)
   const [selectedSlot, setSelectedSlot] = useState<CalculatedSlot | null>(null);
@@ -62,10 +75,16 @@ export const WeeklyTimetable: React.FC = () => {
 
     const { date, time } = focusedTimetableSlot;
 
-    // 1. 해당 날짜가 속한 주의 월요일로 시간표 전환
+    // 1. 해당 날짜가 속한 주의 월요일로 시간표 전환 및 일간 뷰 요일 동기화
     try {
       const targetMonday = getMondayOfWeek(parseDate(date));
       setCurrentMonday(targetMonday);
+
+      const targetWeekdays = getWeekdays(targetMonday);
+      const dayIdx = targetWeekdays.findIndex((w) => w.dateStr === date);
+      if (dayIdx !== -1) {
+        setSelectedDayIndex(dayIdx);
+      }
     } catch (e) {
       console.error('Invalid date for focused slot:', date, e);
     }
@@ -148,7 +167,7 @@ export const WeeklyTimetable: React.FC = () => {
               ({weekTitle})
             </span>
             <span className="text-[9px] text-slate-500">
-              · 월~금 13:00~19:00 (최대 정원 4인)
+              · 월~금 13:00~18:00 (최대 정원 4인)
             </span>
           </div>
           <div className="text-right text-[9px] text-slate-500 leading-none">
@@ -185,7 +204,7 @@ export const WeeklyTimetable: React.FC = () => {
 
       {/* 주간 네비게이션 & 범례 (화면용: 인쇄 시 숨김 - Apple Bar) */}
       <div className="no-print flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-3 border-b border-black/[0.05]">
-        {/* 주간 이동 버튼 & 인쇄 버튼 */}
+        {/* 주간 이동 버튼 & 뷰 모드 토글 & 인쇄 버튼 */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center bg-black/[0.04] p-1 rounded-[16px] border border-black/[0.03]">
             <button
@@ -213,6 +232,32 @@ export const WeeklyTimetable: React.FC = () => {
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-[#0071e3]" />
             <h3 className="text-base font-bold text-[#1d1d1f] tracking-tight">{weekTitle}</h3>
+          </div>
+
+          {/* 뷰 모드 토글 (주간 뷰 / 일간 뷰) */}
+          <div className="flex items-center bg-black/[0.05] p-1 rounded-[16px] border border-black/[0.04]">
+            <button
+              type="button"
+              onClick={() => setViewMode('week')}
+              className={`px-3 py-1 rounded-[12px] text-xs font-bold transition-all ${
+                viewMode === 'week'
+                  ? 'bg-white text-[#1d1d1f] shadow-xs'
+                  : 'text-[#86868b] hover:text-[#1d1d1f]'
+              }`}
+            >
+              주간 뷰
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('day')}
+              className={`px-3 py-1 rounded-[12px] text-xs font-bold transition-all ${
+                viewMode === 'day'
+                  ? 'bg-white text-[#1d1d1f] shadow-xs'
+                  : 'text-[#86868b] hover:text-[#1d1d1f]'
+              }`}
+            >
+              일간 뷰
+            </button>
           </div>
 
           {/* 주간 시간표 인쇄 / PDF 출력 버튼 (Apple Primary Button) */}
@@ -248,8 +293,201 @@ export const WeeklyTimetable: React.FC = () => {
         </div>
       </div>
 
-      {/* 타임테이블 그리드 테이블 */}
-      <div className="overflow-x-auto -mx-2 sm:mx-0 print:overflow-hidden print:mx-0 print:w-full print:p-0 print:m-0">
+      {/* 일간 뷰: 5개 요일 원터치 탭 선택기 (no-print) */}
+      {viewMode === 'day' && (
+        <div className="no-print space-y-4">
+          <div className="grid grid-cols-5 gap-2 p-1.5 bg-black/[0.03] rounded-[20px] border border-black/[0.04]">
+            {weekdays.map((day, idx) => {
+              const isSelected = selectedDayIndex === idx;
+              const isToday = day.dateStr === simulatedToday;
+              return (
+                <button
+                  key={day.dateStr}
+                  type="button"
+                  onClick={() => setSelectedDayIndex(idx)}
+                  className={`py-2.5 px-2 rounded-[16px] flex flex-col items-center justify-center transition-all ${
+                    isSelected
+                      ? 'bg-white text-[#0071e3] font-bold shadow-[0_2px_10px_rgba(0,113,227,0.15)] ring-1 ring-[#0071e3]/30 scale-[1.02]'
+                      : 'text-[#86868b] hover:text-[#1d1d1f] hover:bg-white/60'
+                  }`}
+                >
+                  <span className="text-xs sm:text-sm font-bold">
+                    {DAY_NAMES[day.dayOfWeek]}요일
+                  </span>
+                  <span className="text-[11px] sm:text-xs font-semibold mt-0.5 opacity-90">
+                    {day.month}.{day.dayNum}
+                  </span>
+                  {isToday && (
+                    <span className="text-[9px] bg-[#0071e3] text-white px-2 py-0.2 rounded-full font-bold mt-1">
+                      오늘
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* 일간 뷰 타임라인 카드 스택 */}
+          <div className="space-y-2.5">
+            {/* 선택된 요일 타이틀 서브바 */}
+            <div className="flex items-center justify-between px-1 text-xs text-[#86868b] font-medium">
+              <span>
+                <strong className="text-[#1d1d1f] font-bold text-sm">
+                  {(weekdays[selectedDayIndex] || weekdays[0]).month}월 {(weekdays[selectedDayIndex] || weekdays[0]).dayNum}일 {DAY_NAMES[(weekdays[selectedDayIndex] || weekdays[0]).dayOfWeek]}요일
+                </strong>{' '}
+                레슨 타임라인 (13:00 ~ 18:00)
+              </span>
+              <span className="text-[11px] text-[#0071e3] bg-[#0071e3]/10 px-2 py-0.5 rounded-full font-semibold">
+                슬롯 클릭 시 배정/관리 모달 열림
+              </span>
+            </div>
+
+            {TIME_SLOTS.map((time) => {
+              const currentDay = weekdays[selectedDayIndex] || weekdays[0];
+              const slot = getSlot(currentDay.dateStr, time);
+              const isLocked = slot.status === 'LOCKED';
+              const isEmpty = slot.currentCount === 0 && !isLocked;
+              const isHighlighted = highlightedSlotKey === `${currentDay.dateStr}-${time}`;
+
+              const allAssigned = [
+                ...slot.activeRegularStudents.map((st) => ({
+                  id: `reg-${st.id}`,
+                  name: st.name,
+                  label: '정규',
+                  bg: 'bg-blue-500 text-white',
+                })),
+                ...slot.activeBookings.map(({ booking, isSpecialSecondHalf }) => {
+                  const isCounseling = booking.type === 'counseling';
+                  const isSpecial = booking.type === 'special';
+                  const bg = isCounseling ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white';
+                  const label = isCounseling
+                    ? '상담'
+                    : isSpecial
+                    ? isSpecialSecondHalf
+                      ? '특강2'
+                      : '특강'
+                    : '보강';
+                  return {
+                    id: `booking-${booking.id}`,
+                    name: booking.studentName,
+                    label,
+                    bg,
+                  };
+                }),
+              ];
+
+              let statusBadge = null;
+              let cardBgStyle = 'border-black/[0.06] bg-white hover:border-[#0071e3]/30';
+
+              if (isLocked) {
+                cardBgStyle = 'border-slate-300 bg-slate-50/80 text-slate-600';
+                statusBadge = (
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 flex items-center gap-1">
+                    <Lock className="w-3 h-3" /> 잠금 / 휴식
+                  </span>
+                );
+              } else if (isEmpty) {
+                cardBgStyle = 'border-dashed border-slate-200 bg-white/70 hover:border-[#0071e3]/40';
+                statusBadge = (
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-black/[0.04] text-[#86868b]">
+                    빈 슬롯 (0/4)
+                  </span>
+                );
+              } else if (slot.isAvailableForParent) {
+                cardBgStyle = 'border-emerald-200 bg-emerald-50/20 hover:border-emerald-400';
+                statusBadge = (
+                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 border border-emerald-500/20">
+                    학부모 예약 가능 ({slot.currentCount}/4)
+                  </span>
+                );
+              } else if (slot.isFull) {
+                cardBgStyle = 'border-rose-200 bg-rose-50/20 hover:border-rose-400';
+                statusBadge = (
+                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-rose-500/15 text-rose-700 border border-rose-500/20">
+                    만석 ({slot.currentCount}/4)
+                  </span>
+                );
+              } else {
+                cardBgStyle = 'border-black/[0.06] bg-black/[0.015] hover:border-indigo-300';
+                statusBadge = (
+                  <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-black/[0.05] text-[#424245]">
+                    예약 마감 ({slot.currentCount}/4)
+                  </span>
+                );
+              }
+
+              return (
+                <div
+                  key={time}
+                  id={`slot-cell-${currentDay.dateStr}-${time}`}
+                  onClick={() => setSelectedSlot(slot)}
+                  className={`p-3.5 sm:p-4 rounded-[20px] border transition-all cursor-pointer shadow-xs hover:shadow-md ${cardBgStyle} ${
+                    isHighlighted
+                      ? 'ring-4 ring-[#ff9500] ring-offset-2 ring-offset-white shadow-[0_0_24px_rgba(255,149,0,0.6)] z-20 scale-[1.01] animate-pulse bg-amber-50/95 border-[#ff9500]'
+                      : ''
+                  }`}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    {/* 시간 & 상태 정보 */}
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-base sm:text-lg font-black text-[#1d1d1f] tracking-tight">
+                          {time}
+                        </span>
+                        <span className="text-xs text-[#86868b] font-medium">
+                          ~ {getNextSlotTime(time) || getEndTime(time, 30)}
+                        </span>
+                      </div>
+                      {statusBadge}
+                    </div>
+
+                    {/* 배정 학생 목록 (칩 형태) */}
+                    <div className="flex-1 sm:max-w-[65%] flex flex-wrap items-center gap-1.5 sm:justify-end">
+                      {allAssigned.map((st) => (
+                        <div
+                          key={st.id}
+                          className={`text-xs font-bold ${st.bg} px-2.5 py-1 rounded-[12px] flex items-center gap-1.5 shadow-2xs`}
+                        >
+                          <span>{st.name}</span>
+                          <span className="text-[10px] opacity-85 font-normal">
+                            {st.label}
+                          </span>
+                        </div>
+                      ))}
+
+                      {/* 결석 흔적 */}
+                      {slot.absenceRecords.map((a) => (
+                        <div
+                          key={a.id}
+                          className="text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-1 rounded-[12px] flex items-center gap-1"
+                        >
+                          <span>👻</span>
+                          <span>결석: {a.studentName}</span>
+                        </div>
+                      ))}
+
+                      {/* 빈 자리 유도 버튼 */}
+                      {!isLocked && slot.currentCount < 4 && (
+                        <div className="text-[11px] text-[#86868b] hover:text-[#0071e3] font-medium border border-dashed border-black/[0.1] px-2 py-0.5 rounded-[10px] flex items-center gap-0.5 bg-black/[0.01]">
+                          <Plus className="w-3 h-3" />
+                          <span>배정/관리</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 타임테이블 주간 그리드 테이블 (화면에서는 viewMode === 'week'일 때 보이고, 인쇄 시에는 항상 출력) */}
+      <div
+        className={`overflow-x-auto -mx-2 sm:mx-0 print:overflow-hidden print:mx-0 print:w-full print:p-0 print:m-0 ${
+          viewMode === 'week' ? 'block' : 'hidden print:block'
+        }`}
+      >
         <div className="min-w-[840px] print:min-w-0 print:w-full">
           {/* 요일 헤더 */}
           <div className="grid grid-cols-[80px_repeat(5,1fr)] print:grid-cols-[48px_repeat(5,1fr)] gap-2 print:gap-1 mb-2 print:mb-0.5 font-bold text-center">
@@ -283,7 +521,7 @@ export const WeeklyTimetable: React.FC = () => {
             })}
           </div>
 
-          {/* 슬롯 행 리스트 (13:00 ~ 18:30, 12개 행) */}
+          {/* 슬롯 행 리스트 (13:00 ~ 17:30, 10개 행) */}
           <div className="space-y-2 print:space-y-0.5">
             {TIME_SLOTS.map((time) => (
               <div
@@ -291,7 +529,7 @@ export const WeeklyTimetable: React.FC = () => {
                 className="grid grid-cols-[80px_repeat(5,1fr)] print:grid-cols-[48px_repeat(5,1fr)] gap-2 print:gap-1 print:break-inside-avoid print:page-break-inside-avoid"
               >
                 {/* 세로 시간 레이블 */}
-                <div className="min-h-[72px] sm:min-h-[76px] print:min-h-0 print:h-[12.8mm] flex flex-col items-center justify-center text-xs sm:text-[13px] print:text-[10px] font-extrabold text-slate-700 bg-slate-50/70 print:bg-slate-100 rounded-2xl print:rounded border border-slate-100 print:border-slate-300">
+                <div className="min-h-[72px] sm:min-h-[76px] print:min-h-0 print:h-[15mm] flex flex-col items-center justify-center text-xs sm:text-[13px] print:text-[10px] font-extrabold text-slate-700 bg-slate-50/70 print:bg-slate-100 rounded-2xl print:rounded border border-slate-100 print:border-slate-300">
                   <span>{time}</span>
                 </div>
 
@@ -356,7 +594,7 @@ export const WeeklyTimetable: React.FC = () => {
                       id={`slot-cell-${day.dateStr}-${time}`}
                       type="button"
                       onClick={() => setSelectedSlot(slot)}
-                      className={`relative min-h-[72px] sm:min-h-[76px] print:min-h-0 print:h-[12.8mm] p-1.5 sm:p-2 print:p-0.5 rounded-2xl print:rounded flex flex-col justify-between text-left transition-all active:scale-98 overflow-hidden group print:overflow-hidden print:transform-none print:shadow-none print:border-slate-300 ${cellBg}`}
+                      className={`relative min-h-[72px] sm:min-h-[76px] print:min-h-0 print:h-[15mm] p-1.5 sm:p-2 print:p-0.5 rounded-2xl print:rounded flex flex-col justify-between text-left transition-all active:scale-98 overflow-hidden group print:overflow-hidden print:transform-none print:shadow-none print:border-slate-300 ${cellBg}`}
                     >
                       {/* 시간표 포커싱 강조 뱃지 */}
                       {isHighlighted && (

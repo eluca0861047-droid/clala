@@ -15,7 +15,6 @@ import {
   Calendar,
   Check,
   CheckCheck,
-  Smartphone,
 } from 'lucide-react';
 
 // 상대 시간 표시 헬퍼
@@ -60,9 +59,6 @@ export const AdminDashboard: React.FC = () => {
     unreadBookingCount,
     focusTimetableSlot,
     addToast,
-    pushNotificationStatus,
-    requestPushPermission,
-    sendTestPushNotification,
   } = useReservation();
 
   // 특정 알람 클릭 시 해당 날짜/시간의 시간표 슬롯으로 즉시 이동
@@ -157,63 +153,7 @@ export const AdminDashboard: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* 1. 모바일 잠금화면 PWA 푸시 알림 설정 배너 */}
-      <div className="bg-white/90 backdrop-blur-xl rounded-[24px] p-4 sm:p-5 border border-black/[0.06] shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-wrap items-center justify-between gap-3.5">
-        <div className="flex items-start sm:items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-[14px] bg-[#0071e3]/10 text-[#0071e3] flex items-center justify-center shrink-0 shadow-xs">
-            <Smartphone className="w-5 h-5 text-[#0071e3]" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h4 className="text-sm font-bold text-[#1d1d1f]">모바일 잠금화면 알림</h4>
-              {pushNotificationStatus === 'granted' ? (
-                <span className="text-[10px] font-bold bg-[#34c759]/15 text-[#34c759] border border-[#34c759]/25 px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <Check className="w-3 h-3 text-[#34c759]" />
-                  <span>활성화됨</span>
-                </span>
-              ) : pushNotificationStatus === 'denied' ? (
-                <span className="text-[10px] font-bold bg-[#ff3b30]/15 text-[#ff3b30] border border-[#ff3b30]/25 px-2 py-0.5 rounded-full">
-                  권한 차단됨
-                </span>
-              ) : (
-                <span className="text-[10px] font-bold bg-[#0071e3]/15 text-[#0071e3] border border-[#0071e3]/25 px-2 py-0.5 rounded-full animate-pulse">
-                  간편 설정 가능
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-[#86868b] mt-0.5 leading-relaxed">
-              {pushNotificationStatus === 'granted'
-                ? '스마트폰 화면이 꺼져 있어도 학부모가 보강을 예약하면 잠금화면 배너와 진동/소리로 즉시 알림이 울립니다.'
-                : '스마트폰 화면이 꺼져 있어도 실시간 보강 예약을 잠금화면으로 받으시려면 알림을 켜주세요. (배터리 소모 0%)'}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-          {pushNotificationStatus !== 'granted' ? (
-            <button
-              type="button"
-              onClick={requestPushPermission}
-              className="w-full sm:w-auto px-4 py-2 rounded-[14px] bg-[#0071e3] hover:bg-[#0077ed] text-white text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
-            >
-              <Bell className="w-3.5 h-3.5" />
-              <span>모바일 알림 켜기</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={sendTestPushNotification}
-              className="w-full sm:w-auto px-3.5 py-2 rounded-[14px] bg-black/[0.04] hover:bg-[#0071e3]/10 text-[#1d1d1f] hover:text-[#0071e3] border border-black/[0.06] text-xs font-bold transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
-              title="스마트폰 화면에 알림이 제대로 뜨는지 즉시 테스트합니다"
-            >
-              <Bell className="w-3.5 h-3.5 text-[#0071e3]" />
-              <span>테스트 알림 울려보기</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* 2. 보강 알람 피드 (Apple Continuous Squircle Card) */}
+      {/* 보강 알람 피드 (Apple Continuous Squircle Card) */}
       <div className="bg-white/90 backdrop-blur-xl rounded-[24px] p-5 border border-black/[0.06] shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-3.5">
         {/* 헤더 바 */}
         <div className="flex flex-wrap items-center justify-between gap-2 px-1">
@@ -222,6 +162,9 @@ export const AdminDashboard: React.FC = () => {
               <Bell className="w-3.5 h-3.5" />
             </div>
             <h4 className="text-sm font-bold text-[#1d1d1f]">보강 알람</h4>
+            <span className="text-[10px] text-[#86868b] hidden sm:inline">
+              (2개월 지난 알람 자동 삭제)
+            </span>
             {unreadBookingCount > 0 ? (
               <span className="text-[11px] font-bold bg-[#ff3b30]/15 text-[#ff3b30] px-2.5 py-0.5 rounded-full border border-[#ff3b30]/25 animate-pulse">
                 미확인 알람 {unreadBookingCount}건
@@ -394,7 +337,7 @@ export const AdminDashboard: React.FC = () => {
                     </span>
                   </div>
                   <p className="text-xs text-[#86868b] mt-0.5">
-                    보강 예약, 취소 및 원장실 전체 알림 기록을 확인합니다.
+                    보강 예약, 취소 및 원장실 전체 알림 기록을 확인합니다. (2개월 지난 알람 자동 삭제)
                   </p>
                 </div>
               </div>

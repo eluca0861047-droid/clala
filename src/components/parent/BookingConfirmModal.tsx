@@ -27,6 +27,7 @@ export const BookingConfirmModal: React.FC<BookingConfirmModalProps> = ({
   const { currentStudent, createBooking } = useReservation();
   const [counselingType, setCounselingType] = useState<CounselingType>('in_person');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen || !currentStudent) return null;
 
@@ -38,6 +39,8 @@ export const BookingConfirmModal: React.FC<BookingConfirmModalProps> = ({
       : '원장님 1:1 상담';
 
   const handleConfirm = () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     setErrorMsg(null);
     const res = createBooking({
       studentId: currentStudent.id,
@@ -62,6 +65,7 @@ export const BookingConfirmModal: React.FC<BookingConfirmModalProps> = ({
       if (onSuccess) onSuccess();
       onClose();
     } else {
+      setIsSubmitting(false);
       setErrorMsg(res.error || '예약 중 오류가 발생했습니다.');
     }
   };
@@ -174,9 +178,12 @@ export const BookingConfirmModal: React.FC<BookingConfirmModalProps> = ({
           <button
             type="button"
             onClick={handleConfirm}
-            className="flex-2 py-3 px-6 rounded-[16px] font-semibold text-sm bg-[#0071e3] hover:bg-[#0077ed] active:scale-[0.98] text-white shadow-[0_4px_14px_rgba(0,113,227,0.35)] transition-all text-center"
+            disabled={isSubmitting}
+            className={`flex-2 py-3 px-6 rounded-[16px] font-semibold text-sm bg-[#0071e3] hover:bg-[#0077ed] active:scale-[0.98] text-white shadow-[0_4px_14px_rgba(0,113,227,0.35)] transition-all text-center ${
+              isSubmitting ? 'opacity-60 cursor-not-allowed' : ''
+            }`}
           >
-            예약 확정하기
+            {isSubmitting ? '예약 처리 중...' : '예약 확정하기'}
           </button>
         </div>
       </div>

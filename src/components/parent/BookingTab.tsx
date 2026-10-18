@@ -282,7 +282,7 @@ export const BookingTab: React.FC = () => {
                 // 본인의 수업
                 buttonStyle =
                   'border border-[#0071e3]/30 bg-[#0071e3]/[0.08] text-[#0071e3] cursor-not-allowed';
-                badgeText = '내 수업';
+                badgeText = '수업';
               } else if (isAvailable) {
                 // 예약 가능 빈 슬롯
                 buttonStyle =

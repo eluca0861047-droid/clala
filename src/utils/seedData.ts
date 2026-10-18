@@ -94,14 +94,6 @@ export function getInitialSeedData(referenceDate: Date = new Date()) {
       reason: '원장님 고정 휴식 (Break Time)',
       createdAt: new Date().toISOString(),
     },
-    {
-      id: 'lock-fri-cleanup',
-      date: friStr,
-      time: '18:00',
-      isRecurringDaily: false,
-      reason: '학원 정기 시설 점검',
-      createdAt: new Date().toISOString(),
-    },
   ];
 
   // 샘플 예약 내역:

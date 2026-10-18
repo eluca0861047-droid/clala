@@ -11,8 +11,6 @@ export const TIME_SLOTS: string[] = [
   '16:30',
   '17:00',
   '17:30',
-  '18:00',
-  '18:30',
 ];
 
 export const DAY_NAMES: Record<number, string> = {

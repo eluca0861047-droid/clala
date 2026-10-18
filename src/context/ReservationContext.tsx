@@ -37,17 +37,38 @@ import {
   dbUpsertStudent,
   dbDeleteStudent,
   dbInsertLog,
+  dbPurgeOldLogs,
   dbResetAllData,
 } from '../services/supabaseService';
+
+export const TWO_MONTHS_MS = 60 * 24 * 60 * 60 * 1000;
+
+// 2개월(60일) 이내 생성/일정인지 판별하는 헬퍼 함수 (두달 지난 알람 자동 삭제 기준)
+export const isWithinTwoMonths = (createdAt?: string, date?: string): boolean => {
+  const cutoff = Date.now() - TWO_MONTHS_MS;
+  if (createdAt) {
+    const time = new Date(createdAt).getTime();
+    if (!isNaN(time)) return time >= cutoff;
+  }
+  if (date) {
+    const time = new Date(`${date}T00:00:00`).getTime();
+    if (!isNaN(time)) return time >= cutoff;
+  }
+  return true;
+};
+export const isWithinOneMonth = isWithinTwoMonths;
 
 import { playNotificationChime } from '../utils/soundUtils';
 import {
   PushNotificationStatus,
+  DeviceNotificationDiagnosis,
+  diagnoseNotificationEnvironment,
   getNotificationPermissionStatus,
   requestNotificationPermission,
   sendSystemNotification,
   sendTestNotification,
 } from '../services/pushNotificationService';
+import { PushNotificationGuideModal } from '../components/common/PushNotificationGuideModal';
 
 export interface ToastMessage {
   id: string;
@@ -176,6 +197,10 @@ interface ReservationContextType {
   pushNotificationStatus: PushNotificationStatus;
   requestPushPermission: () => Promise<PushNotificationStatus>;
   sendTestPushNotification: () => Promise<boolean>;
+  isPushGuideModalOpen: boolean;
+  pushDiagnosis: DeviceNotificationDiagnosis | null;
+  openPushGuideModal: () => void;
+  closePushGuideModal: () => void;
 }
 
 const STORAGE_KEYS = {
@@ -230,7 +255,8 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const [logs, setLogs] = useState<ActivityLog[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.LOGS);
-    return saved ? JSON.parse(saved) : initialSeed.logs;
+    const parsed: ActivityLog[] = saved ? JSON.parse(saved) : initialSeed.logs;
+    return (parsed || []).filter((l) => isWithinOneMonth(l.createdAt, l.date));
   });
 
   // Direct Parent Access Link Detection (URL Query: ?student=... or ?code=...)
@@ -395,8 +421,24 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [locks]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify(logs));
+    const validLogs = logs.filter((l) => isWithinOneMonth(l.createdAt, l.date));
+    localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify(validLogs));
   }, [logs]);
+
+  // 1개월 지난 알람 자동 삭제 (앱 실행 시 및 1시간 주기 자동 청소)
+  useEffect(() => {
+    const cleanupOldAlarms = () => {
+      setLogs((prev) => {
+        const filtered = prev.filter((l) => isWithinOneMonth(l.createdAt, l.date));
+        return filtered.length !== prev.length ? filtered : prev;
+      });
+      dbPurgeOldLogs().catch(console.error);
+    };
+
+    cleanupOldAlarms();
+    const intervalTimer = setInterval(cleanupOldAlarms, 60 * 60 * 1000);
+    return () => clearInterval(intervalTimer);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.CURRENT_STUDENT, currentStudentId);
@@ -435,7 +477,9 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setBookings(cloudData.bookings);
         setAbsences(cloudData.absences);
         setLocks(cloudData.locks);
-        setLogs(cloudData.logs);
+        const filteredLogs = (cloudData.logs || []).filter((l) => isWithinOneMonth(l.createdAt, l.date));
+        setLogs(filteredLogs);
+        dbPurgeOldLogs().catch(console.error);
       } else if (cloudData && cloudData.students.length === 0) {
         // 클라우드 DB 테이블이 비어있으면 초기 샘플 데이터 시딩
         await seedInitialDataToSupabase(initialSeed);
@@ -445,7 +489,8 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
           setBookings(refreshed.bookings);
           setAbsences(refreshed.absences);
           setLocks(refreshed.locks);
-          setLogs(refreshed.logs);
+          const filteredRefreshedLogs = (refreshed.logs || []).filter((l) => isWithinOneMonth(l.createdAt, l.date));
+          setLogs(filteredRefreshedLogs);
         }
       }
     });
@@ -514,7 +559,10 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_logs' }, async () => {
         const d = await fetchAllDataFromSupabase();
-        if (isMounted && d) setLogs(d.logs);
+        if (isMounted && d) {
+          const filteredLogs = (d.logs || []).filter((l) => isWithinOneMonth(l.createdAt, l.date));
+          setLogs(filteredLogs);
+        }
       })
       .subscribe();
 
@@ -618,14 +666,18 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
     addToast('success', '예약 시작일 변경', `보강 예약 1주차 시작일이 [${dateStr}]로 설정되었습니다.`);
   }, [addToast]);
 
-  // 최근 보강 예약 목록 (실제 bookings 테이블 및 logs 통합, 완전 중복 제거, 최신 신청순)
+  // 최근 보강 예약 목록 (실제 bookings 테이블 및 logs 통합, 완전 중복 제거, 최신 신청순, 2개월 초과 알람 자동 제외)
   const recentBookingLogs = useMemo(() => {
-    // 1. bookings 테이블의 실제 예약들 (신규 예약의 가장 확실한 원천)
+    // 고유 키 기반 맵: "학생이름_날짜_시간" (동일 학생의 동일 슬롯 예약은 무조건 1건으로 보장)
     const bookingMap = new Map<string, ActivityLog>();
 
+    // 1. bookings 테이블의 실제 예약들 (신규 예약의 가장 확실한 원천)
     bookings
       .filter((b) => b.type === 'makeup' || b.type === 'special' || b.type === 'counseling')
       .forEach((b) => {
+        // 2개월(60일) 지난 예약 알람 자동 제외
+        if (!isWithinTwoMonths(b.createdAt, b.date)) return;
+
         const typeLabel =
           b.type === 'special'
             ? '심화 특강'
@@ -633,7 +685,10 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
             ? `상담(${b.counselingType === 'in_person' ? '대면' : '전화'})`
             : '보강 수업';
 
-        bookingMap.set(b.id, {
+        const uniqueKey = `${b.studentName || '원생'}_${b.date}_${b.time}`;
+        if (bookingMap.has(uniqueKey)) return;
+
+        bookingMap.set(uniqueKey, {
           id: b.id,
           type: 'booking' as const,
           message: `${b.studentName || '원생'} 학생이 [${b.date} ${b.time}] ${typeLabel} 예약을 완료했습니다.`,
@@ -646,25 +701,32 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
         });
       });
 
-    // 2. logs 테이블에서 아직 등록되지 않은 고유 예약 로그만 추가 (bookingId 및 id 기준 중복 원천 차단)
-    const registeredBookingIds = new Set(bookings.map((b) => b.id));
-
+    // 2. logs 테이블에서 아직 등록되지 않은 고유 예약 로그만 추가
     logs
       .filter((l) => l.type === 'booking')
       .forEach((l) => {
-        // 이미 bookings 테이블에 등록된 예약이면 중복이므로 건너뜀
-        if (l.bookingId && registeredBookingIds.has(l.bookingId)) return;
-        if (registeredBookingIds.has(l.id)) return;
-        if (bookingMap.has(l.id)) return;
+        // 2개월(60일) 지난 알람 자동 제외
+        if (!isWithinTwoMonths(l.createdAt, l.date)) return;
 
-        // 동일 학생 + 동일 예약 일시 메시지인 경우도 중복 건너뜀 (안전망)
-        const isDuplicateContent = Array.from(bookingMap.values()).some(
-          (item) => item.studentName === l.studentName && item.date === l.date && item.time === l.time
-        );
-        if (isDuplicateContent) return;
+        // 메시지 텍스트에서 [YYYY-MM-DD HH:mm] 추출 fallback
+        const match = l.message ? l.message.match(/\[(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\]/) : null;
+        const logDate = l.date || (match ? match[1] : undefined);
+        const logTime = l.time || (match ? match[2] : undefined);
 
-        bookingMap.set(l.id, {
+        if (logDate && logTime) {
+          const uniqueKey = `${l.studentName || '원생'}_${logDate}_${logTime}`;
+          if (bookingMap.has(uniqueKey)) return;
+        } else {
+          if (Array.from(bookingMap.values()).some((item) => item.message === l.message)) return;
+        }
+
+        const fallbackKey = `${l.studentName || '원생'}_${logDate || l.id}_${logTime || ''}`;
+        if (bookingMap.has(fallbackKey)) return;
+
+        bookingMap.set(fallbackKey, {
           ...l,
+          date: logDate || l.date,
+          time: logTime || l.time,
           timestamp: getRelativeTime(l.createdAt, l.timestamp || '방금 전'),
         });
       });
@@ -703,6 +765,13 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
         if (matched) {
           newIds.add(matched.id);
           if (matched.bookingId) newIds.add(matched.bookingId);
+          // 동일 학생의 동일 일시 알람도 모두 함께 읽음 처리
+          recentBookingLogs
+            .filter((l) => l.studentName === matched.studentName && l.date === matched.date && l.time === matched.time)
+            .forEach((l) => {
+              newIds.add(l.id);
+              if (l.bookingId) newIds.add(l.bookingId);
+            });
         }
         const updated = Array.from(newIds);
         if (typeof window !== 'undefined') {
@@ -728,23 +797,55 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return getNotificationPermissionStatus();
   });
 
+  const [isPushGuideModalOpen, setIsPushGuideModalOpen] = useState(false);
+  const [pushDiagnosis, setPushDiagnosis] = useState<DeviceNotificationDiagnosis | null>(() => {
+    return typeof window !== 'undefined' ? diagnoseNotificationEnvironment() : null;
+  });
+
+  const openPushGuideModal = useCallback(() => {
+    setPushDiagnosis(diagnoseNotificationEnvironment());
+    setIsPushGuideModalOpen(true);
+  }, []);
+
+  const closePushGuideModal = useCallback(() => {
+    setIsPushGuideModalOpen(false);
+  }, []);
+
   useEffect(() => {
     setPushNotificationStatus(getNotificationPermissionStatus());
+    setPushDiagnosis(diagnoseNotificationEnvironment());
   }, []);
 
   const requestPushPermission = useCallback(async () => {
+    const diag = diagnoseNotificationEnvironment();
+    setPushDiagnosis(diag);
+
+    // 준비 상태가 아닌 경우 (비보안 HTTP, 아이폰 홈화면 추가 필요, 인앱 브라우저, 권한 차단 등) 바로 가이드 모달 팝업
+    if (diag.statusType !== 'ready') {
+      setIsPushGuideModalOpen(true);
+      return diag.permission;
+    }
+
     const res = await requestNotificationPermission();
     setPushNotificationStatus(res);
     if (res === 'granted') {
       addToast('success', '모바일 알림 활성화', '스마트폰 잠금화면 알림이 성공적으로 설정되었습니다!');
       sendTestNotification().catch(console.error);
-    } else if (res === 'denied') {
-      addToast('warning', '알림 권한 차단됨', '브라우저 설정에서 알림 권한을 허용해 주세요.');
+    } else if (res === 'denied' || res === 'unsupported') {
+      setPushDiagnosis(diagnoseNotificationEnvironment());
+      setIsPushGuideModalOpen(true);
     }
     return res;
   }, [addToast]);
 
   const sendTestPushNotification = useCallback(async () => {
+    const diag = diagnoseNotificationEnvironment();
+    if (diag.statusType !== 'ready' || pushNotificationStatus !== 'granted') {
+      setPushDiagnosis(diag);
+      setIsPushGuideModalOpen(true);
+      return false;
+    }
+
     const ok = await sendTestNotification();
     if (ok) {
       addToast('info', '테스트 알림 발송', '스마트폰 화면에 테스트 알림이 발송되었습니다.');
@@ -752,7 +853,7 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
       addToast('warning', '알림 권한 필요', '먼저 모바일 알림 켜기 버튼을 눌러 권한을 허용해 주세요.');
     }
     return ok;
-  }, [addToast]);
+  }, [addToast, pushNotificationStatus]);
 
   // 원장님 모드 진입 시 및 새 예약 알람 도착 시 자동으로 팝업창 띄우기
   useEffect(() => {
@@ -1025,7 +1126,7 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
       if (duration === 60) {
         const nextTime = getNextSlotTime(time);
         if (!nextTime) {
-          return { success: false, error: '특강(60분)은 마지막 타임(18:30)에 예약할 수 없습니다.' };
+          return { success: false, error: `특강(60분)은 마지막 타임(${time})에 예약할 수 없습니다.` };
         }
         secondSlot = getSlot(date, nextTime);
         const alreadyInSecondSlot =
@@ -1696,9 +1797,22 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
     pushNotificationStatus,
     requestPushPermission,
     sendTestPushNotification,
+    isPushGuideModalOpen,
+    pushDiagnosis,
+    openPushGuideModal,
+    closePushGuideModal,
   };
 
-  return <ReservationContext.Provider value={value}>{children}</ReservationContext.Provider>;
+  return (
+    <ReservationContext.Provider value={value}>
+      {children}
+      <PushNotificationGuideModal
+        isOpen={isPushGuideModalOpen}
+        onClose={closePushGuideModal}
+        diagnosis={pushDiagnosis}
+      />
+    </ReservationContext.Provider>
+  );
 };
 
 export const useReservation = () => {
