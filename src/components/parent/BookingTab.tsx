@@ -65,8 +65,13 @@ export const BookingTab: React.FC = () => {
     const found = allDays.find((d) => d.dateStr === simulatedToday);
     if (found) {
       setSelectedDate(found.dateStr);
-    } else if (fourWeeks[0]?.days[0]?.dateStr) {
-      setSelectedDate(fourWeeks[0].days[0].dateStr);
+    } else {
+      const upcoming = allDays.find((d) => d.dateStr >= simulatedToday);
+      if (upcoming) {
+        setSelectedDate(upcoming.dateStr);
+      } else if (fourWeeks[0]?.days[0]?.dateStr) {
+        setSelectedDate(fourWeeks[0].days[0].dateStr);
+      }
     }
   }, [simulatedToday, fourWeeks]);
 
@@ -87,18 +92,21 @@ export const BookingTab: React.FC = () => {
     const targetWeek = fourWeeks[weekIdx];
     if (!targetWeek) return;
 
-    // 만약 이미 선택된 날짜가 해당 주에 속해 있다면 유지, 없으면 해당 주의 첫 날로 이동
+    // 만약 이미 선택된 날짜가 해당 주에 속해 있다면 유지, 없으면 해당 주에서 오늘 이후 날짜 중 빈 슬롯 있는 날로 이동
     const hasSelectedDate = targetWeek.days.some((d) => d.dateStr === selectedDate);
     if (!hasSelectedDate) {
-      // 빈 슬롯이 있는 첫 날을 우선 선택, 없으면 월요일 선택
-      const dayWithSlots = targetWeek.days.find((d) => getAvailableCountForDay(d.dateStr) > 0);
-      setSelectedDate(dayWithSlots ? dayWithSlots.dateStr : targetWeek.days[0].dateStr);
+      const upcomingDays = targetWeek.days.filter((d) => d.dateStr >= simulatedToday);
+      const dayWithSlots = upcomingDays.find((d) => getAvailableCountForDay(d.dateStr) > 0);
+      const targetDay = dayWithSlots || upcomingDays[0] || targetWeek.days[0];
+      setSelectedDate(targetDay.dateStr);
     }
   };
 
   // 선택된 날짜의 슬롯 리스트 계산
   const currentDaySlots = useMemo(() => {
     if (!selectedDate) return [];
+    const isPastDate = selectedDate < simulatedToday;
+
     return TIME_SLOTS.map((time) => {
       const slot = getSlot(selectedDate, time);
 
@@ -107,8 +115,8 @@ export const BookingTab: React.FC = () => {
       const isMyBooking = slot.activeBookings.some((b) => b.booking.studentId === currentStudent?.id);
       const isMine = isMyRegular || isMyBooking;
 
-      // 학부모 예약 가능 여부: 동시간대 수업 인원이 1명 이하(0명 또는 1명)이고 본인 수업이 아님
-      const isSelectable = slot.isAvailableForParent && !isMine;
+      // 학부모 예약 가능 여부: 과거 날짜가 아니고, 동시간대 수업 인원이 1명 이하이고 본인 수업이 아님
+      const isSelectable = !isPastDate && slot.isAvailableForParent && !isMine;
 
       return {
         ...slot,
@@ -116,7 +124,7 @@ export const BookingTab: React.FC = () => {
         isMine,
       };
     });
-  }, [selectedDate, getSlot, currentStudent]);
+  }, [selectedDate, getSlot, currentStudent, simulatedToday]);
 
   const displaySlots = currentDaySlots;
 
@@ -192,7 +200,8 @@ export const BookingTab: React.FC = () => {
         <div className="grid grid-cols-5 gap-1.5 pt-0.5">
           {currentWeek.days.map((day) => {
             const isSelected = day.dateStr === selectedDate;
-            const count = getAvailableCountForDay(day.dateStr);
+            const isPast = day.dateStr < simulatedToday;
+            const count = isPast ? 0 : getAvailableCountForDay(day.dateStr);
             const hasSlots = count > 0;
             const isToday = day.dateStr === simulatedToday;
 
@@ -207,31 +216,37 @@ export const BookingTab: React.FC = () => {
                 className={`py-2.5 px-0.5 rounded-[18px] border flex flex-col items-center justify-center transition-all active:scale-[0.98] ${
                   isSelected
                     ? 'border-[#0071e3] bg-[#0071e3]/[0.08] text-[#0071e3] font-bold shadow-sm ring-1 ring-[#0071e3]'
+                    : isPast
+                    ? 'border-black/[0.04] bg-black/[0.02] text-[#86868b] opacity-60'
                     : 'border-black/[0.06] bg-white/70 hover:bg-white text-[#1d1d1f]'
                 }`}
               >
                 {/* 요일명 */}
                 <span
                   className={`text-[10px] font-semibold ${
-                    isSelected ? 'text-[#0071e3]' : 'text-[#86868b]'
+                    isSelected ? 'text-[#0071e3]' : isPast ? 'text-[#86868b]/70' : 'text-[#86868b]'
                   }`}
                 >
                   {DAY_NAMES[day.dayOfWeek]}요일
                 </span>
 
                 {/* 일자 */}
-                <span className="text-sm font-bold mt-0.5 leading-tight">
+                <span className={`text-sm font-bold mt-0.5 leading-tight ${isPast ? 'text-[#86868b]' : ''}`}>
                   {day.dayNum}일
                 </span>
 
-                {/* 오늘 표시 or 빈 슬롯 개수 뱃지 */}
+                {/* 오늘 표시 or 빈 슬롯 개수 뱃지 or 종료 표시 */}
                 <div className="mt-1 flex flex-col items-center gap-0.5">
                   {isToday && (
                     <span className="text-[9px] font-bold text-[#0071e3] bg-[#0071e3]/15 px-1.5 py-0.2 rounded-full leading-none mb-0.5">
                       오늘
                     </span>
                   )}
-                  {hasSlots ? (
+                  {isPast ? (
+                    <span className="text-[10px] text-[#86868b]/70 font-normal">
+                      종료
+                    </span>
+                  ) : hasSlots ? (
                     <span className="inline-flex items-center text-[10px] font-bold text-[#34c759] bg-[#34c759]/15 px-1.5 py-0.2 rounded-full border border-[#34c759]/25">
                       {count}
                     </span>
@@ -248,13 +263,18 @@ export const BookingTab: React.FC = () => {
       </div>
 
       {/* 3. 선택 일자 헤더 */}
-      <div className="px-1">
+      <div className="px-1 flex items-center justify-between gap-2">
         <span className="text-xs font-bold text-[#1d1d1f]">
           {parsedSelectedDay &&
             `${parsedSelectedDay.getMonth() + 1}월 ${parsedSelectedDay.getDate()}일 (${
               DAY_NAMES[selectedDayIndex] || ''
             })`}
         </span>
+        {selectedDate < simulatedToday && (
+          <span className="text-[11px] font-bold text-[#ff3b30] bg-[#ff3b30]/10 px-2 py-0.5 rounded-full border border-[#ff3b30]/20">
+            이미 지난 날짜 (예약 불가)
+          </span>
+        )}
       </div>
 
       {/* 4. 30분 단위 타임 슬롯 그리드 (Apple Time Chips) - 3열 배치 */}
@@ -269,6 +289,7 @@ export const BookingTab: React.FC = () => {
               const isSelected = selectedTime === slot.time;
               const isAvailable = slot.isSelectable;
               const isMine = slot.isMine;
+              const isPastDate = selectedDate < simulatedToday;
 
               let buttonStyle = '';
               let badgeText = '';
@@ -278,6 +299,11 @@ export const BookingTab: React.FC = () => {
                 buttonStyle =
                   'border border-[#0071e3] bg-[#0071e3] text-white shadow-[0_4px_14px_rgba(0,113,227,0.35)] scale-[1.02]';
                 badgeText = '선택됨';
+              } else if (isPastDate) {
+                // 이미 지난 날짜의 슬롯
+                buttonStyle =
+                  'border border-black/[0.04] bg-black/[0.02] text-[#86868b]/70 cursor-not-allowed opacity-60';
+                badgeText = '종료';
               } else if (isMine) {
                 // 본인의 수업
                 buttonStyle =
@@ -308,6 +334,8 @@ export const BookingTab: React.FC = () => {
                     className={`text-[10px] mt-1 font-semibold ${
                       isSelected
                         ? 'text-white/90'
+                        : isPastDate
+                        ? 'text-[#86868b]/70'
                         : isMine
                         ? 'text-[#0071e3]'
                         : isAvailable

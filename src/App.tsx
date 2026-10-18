@@ -5,7 +5,6 @@ import { ParentView } from './components/parent/ParentView';
 import { AdminView } from './components/admin/AdminView';
 import { AdminLockScreen } from './components/auth/AdminLockScreen';
 import { ToastContainer } from './components/common/ToastContainer';
-import { AdminLiveAlertBanner } from './components/common/AdminLiveAlertBanner';
 import { AdminNotificationModal } from './components/common/AdminNotificationModal';
 import { PwaInstallPrompt } from './components/common/PwaInstallPrompt';
 
@@ -30,10 +29,9 @@ const AppContent: React.FC = () => {
         <TopDemoBar />
       </div>
 
-      {/* 2. 전역 알림 토스트 & 실시간 플로팅 알림 & 부재중 예약 모달 & PWA 설치 배너 */}
+      {/* 2. 전역 알림 토스트 & 부재중 예약 모달 & PWA 설치 배너 */}
       <div className="no-print">
         <ToastContainer />
-        <AdminLiveAlertBanner />
         <AdminNotificationModal />
         <PwaInstallPrompt />
       </div>

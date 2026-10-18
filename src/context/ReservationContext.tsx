@@ -1024,8 +1024,9 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const maxCapacity = 4;
       const isFull = currentCount >= maxCapacity;
 
-      // 학부모 예약 가능 조건: 잠금이 아니고 동시간대 수업 인원이 0명 또는 1명일 때만!
-      const isAvailableForParent = !lock && currentCount <= 1;
+      // 학부모 예약 가능 조건: 이미 지난 날짜가 아니고, 잠금이 아니고 동시간대 수업 인원이 0명 또는 1명일 때만!
+      const isPastDate = dateStr < simulatedToday;
+      const isAvailableForParent = !isPastDate && !lock && currentCount <= 1;
 
       // 상태 결정
       let status: SlotStatusType = 'AVAILABLE';
@@ -1059,10 +1060,10 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
         isSpecialSecondHalf: activeBookings.some((b) => b.isSpecialSecondHalf),
       };
     },
-    [locks, bookings, students, absences]
+    [locks, bookings, students, absences, simulatedToday]
   );
 
-  // 하루 전체 12개 슬롯 반환
+  // 하루 전체 슬롯 반환
   const getSlotsForDay = useCallback(
     (dateStr: string): CalculatedSlot[] => {
       return TIME_SLOTS.map((time) => getSlot(dateStr, time));
@@ -1073,6 +1074,8 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
   // 특정 날짜의 학부모 예약 가능한 빈 슬롯 개수 카운트 (동시간대 인원 1명 이하)
   const getAvailableCountForDay = useCallback(
     (dateStr: string, is60MinSpecial = false): number => {
+      // 이미 지난 날짜는 예약 가능 슬롯 0개로 즉시 반환
+      if (dateStr < simulatedToday) return 0;
       const slots = getSlotsForDay(dateStr);
       if (!is60MinSpecial) {
         return slots.filter((s) => s.isAvailableForParent).length;
@@ -1086,7 +1089,7 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
       }
       return count;
     },
-    [getSlotsForDay]
+    [getSlotsForDay, simulatedToday]
   );
 
   /**
@@ -1107,6 +1110,11 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const targetStudent = students.find((s) => s.id === studentId);
       if (!targetStudent) {
         return { success: false, error: '학생 정보를 찾을 수 없습니다.' };
+      }
+
+      // 과거 날짜 예약 차단: 오늘 이전 날짜는 예약 불가
+      if (date < simulatedToday) {
+        return { success: false, error: '이미 지난 날짜에는 예약할 수 없습니다.' };
       }
 
       // 첫 번째 슬롯 조회
@@ -1261,7 +1269,7 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       return { success: true };
     },
-    [students, getSlot, addToast, setLatestLiveAlert, isParentDirectLink]
+    [students, getSlot, addToast, setLatestLiveAlert, isParentDirectLink, simulatedToday]
   );
 
   /**
