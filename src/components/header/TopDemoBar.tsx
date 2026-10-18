@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { useReservation } from '../../context/ReservationContext';
 import { DayOfWeek } from '../../types';
 import {
@@ -8,8 +8,11 @@ import {
   Share2,
   ChevronDown,
   Lock,
+  KeyRound,
+  Bell,
 } from 'lucide-react';
 import { parseDate, DAY_NAMES } from '../../utils/dateUtils';
+import { ChangePasswordModal } from '../auth/ChangePasswordModal';
 
 export const TopDemoBar: React.FC = () => {
   const {
@@ -29,7 +32,11 @@ export const TopDemoBar: React.FC = () => {
     isCloudConnected,
     isAdminAuthenticated,
     logoutAdmin,
+    unreadBookingCount,
+    setIsNotificationModalOpen,
   } = useReservation();
+
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
   // 접속 학생 목록 가나다순(한국어 오름차순) 정렬
   const sortedStudents = useMemo(() => {
@@ -78,9 +85,12 @@ export const TopDemoBar: React.FC = () => {
                 className="w-full h-full object-contain"
               />
             </div>
-            <div>
+            <div className="flex items-center gap-2">
               <span className="font-semibold text-sm tracking-tight text-white">
                 숙명클라라피아노
+              </span>
+              <span className="inline-flex items-center text-[10px] font-semibold bg-white/10 text-white/80 border border-white/10 px-2 py-0.5 rounded-full">
+                보강 예약하기
               </span>
             </div>
           </div>
@@ -148,7 +158,7 @@ export const TopDemoBar: React.FC = () => {
                   숙명클라라피아노
                 </span>
                 <span className="hidden sm:inline-flex items-center text-[10px] font-semibold bg-white/10 text-white/80 border border-white/10 px-2 py-0.5 rounded-full">
-                  스마트 예약 & 보강
+                  보강 예약하기
                 </span>
                 {isCloudConnected ? (
                   <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#34c759] bg-[#34c759]/15 border border-[#34c759]/25 px-2 py-0.5 rounded-full" title="Supabase 실시간 클라우드 DB 연결 완료">
@@ -166,14 +176,26 @@ export const TopDemoBar: React.FC = () => {
           </div>
         )}
 
-        {/* 중앙: 모드 전환 & 접속 학생 (Apple 통합 세그먼티드 컨트롤: 학부모 모드 + 접속 학생 일체형 토글) */}
+        {/* 중앙: 모드 전환 & 접속 학생 (원장님 모드 왼쪽, 학부모 모드 오른쪽) */}
         <div className="flex items-center">
           <div className="inline-flex items-center p-1 bg-white/[0.08] backdrop-blur-2xl rounded-2xl border border-white/[0.12] shadow-[0_4px_20px_rgba(0,0,0,0.15)] transition-all">
             {appMode === 'parent' ? (
               <>
-                {/* 1. 학부모 모드 + 접속 학생 일체형 토글 묶음 (Apple Elevated Active Pill) */}
+                {/* 1. 원장님 모드 전환 버튼 (왼쪽) */}
+                <button
+                  type="button"
+                  onClick={() => setAppMode('admin')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-[13px] font-semibold text-white/70 hover:text-white hover:bg-white/[0.06] transition-all cursor-pointer active:scale-[0.98]"
+                  title="원장님 모드 화면으로 전환"
+                >
+                  <Monitor className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0071e3] shrink-0" />
+                  <span>원장님 모드</span>
+                  <span className="hidden md:inline text-[10px] opacity-60 font-normal">(와이드)</span>
+                </button>
+
+                {/* 2. 학부모 모드 + 접속 학생 일체형 토글 묶음 (오른쪽 - Apple Elevated Active Pill) */}
                 <div className="flex items-center bg-white text-[#1d1d1f] shadow-[0_2px_10px_rgba(0,0,0,0.18),0_1px_2px_rgba(0,0,0,0.08)] rounded-xl transition-all">
-                  {/* 학부모 모드 라벨/버튼 */}
+                  {/* 학부모 모드 라벨 */}
                   <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-[13px] font-bold tracking-tight select-none">
                     <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0071e3] shrink-0" />
                     <span>학부모 모드</span>
@@ -218,22 +240,22 @@ export const TopDemoBar: React.FC = () => {
                     </button>
                   </div>
                 </div>
-
-                {/* 2. 원장님 모드 전환 버튼 */}
+              </>
+            ) : (
+              /* 원장님 모드일 때: Apple Segmented Control (원장님 모드 왼쪽, 학부모 모드 오른쪽) */
+              <>
+                {/* 1. 원장님 모드 (왼쪽 - Active) */}
                 <button
                   type="button"
                   onClick={() => setAppMode('admin')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-[13px] font-semibold text-white/70 hover:text-white hover:bg-white/[0.06] transition-all cursor-pointer active:scale-[0.98]"
-                  title="원장님 모드 화면으로 전환"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-[13px] font-bold bg-white text-[#1d1d1f] shadow-[0_2px_10px_rgba(0,0,0,0.18),0_1px_2px_rgba(0,0,0,0.08)] transition-all cursor-default"
                 >
                   <Monitor className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0071e3] shrink-0" />
                   <span>원장님 모드</span>
-                  <span className="hidden md:inline text-[10px] opacity-60 font-normal">(와이드)</span>
+                  <span className="hidden md:inline text-[10px] text-[#1d1d1f]/50 font-normal">(와이드)</span>
                 </button>
-              </>
-            ) : (
-              /* 원장님 모드일 때: Apple Segmented Control */
-              <>
+
+                {/* 2. 학부모 모드 전환 버튼 (오른쪽) */}
                 <button
                   type="button"
                   onClick={() => {
@@ -249,22 +271,12 @@ export const TopDemoBar: React.FC = () => {
                   <span>학부모 모드</span>
                   <span className="hidden md:inline text-[10px] opacity-60 font-normal">(모바일)</span>
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAppMode('admin')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-[13px] font-bold bg-white text-[#1d1d1f] shadow-[0_2px_10px_rgba(0,0,0,0.18),0_1px_2px_rgba(0,0,0,0.08)] transition-all cursor-default"
-                >
-                  <Monitor className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0071e3] shrink-0" />
-                  <span>원장님 모드</span>
-                  <span className="hidden md:inline text-[10px] text-[#1d1d1f]/50 font-normal">(와이드)</span>
-                </button>
               </>
             )}
           </div>
         </div>
 
-        {/* 우측: 시뮬레이션 날짜 (Apple Minimalist) */}
+        {/* 우측: 시뮬레이션 날짜 & 원장님 보안 제어 (열쇠 아이콘 + 화면잠금) */}
         <div className="flex items-center gap-2">
           {/* 가상 오늘 날짜 표시 */}
           <div className="hidden lg:flex items-center gap-1.5 bg-white/[0.08] px-2.5 py-1 rounded-xl border border-white/[0.08] text-xs">
@@ -279,20 +291,53 @@ export const TopDemoBar: React.FC = () => {
             <span className="text-white/90 font-bold">({dayName})</span>
           </div>
 
-          {/* 원장님 모드 즉시 잠금 버튼 */}
+          {/* 원장님 신규 보강 예약 알림 벨 & 레드 닷 배지 (Feature 3) */}
           {appMode === 'admin' && isAdminAuthenticated && (
             <button
               type="button"
-              onClick={logoutAdmin}
-              className="flex items-center gap-1.5 bg-white/[0.08] hover:bg-white/[0.15] px-2.5 py-1.5 rounded-xl border border-white/[0.08] text-xs text-white/80 hover:text-white transition-all cursor-pointer active:scale-95"
-              title="원장님 모드 화면 즉시 잠금"
+              onClick={() => setIsNotificationModalOpen(true)}
+              className="relative p-2 rounded-xl bg-white/[0.08] hover:bg-white/[0.15] text-white/80 hover:text-white transition-all cursor-pointer active:scale-95"
+              title="새로 접수된 보강 예약 알림"
             >
-              <Lock className="w-3.5 h-3.5 text-[#ff453a]" />
-              <span className="hidden sm:inline text-[11px] font-semibold">잠금</span>
+              <Bell className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#ff9500]" />
+              {unreadBookingCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 bg-[#ff3b30] text-white text-[10px] font-extrabold rounded-full flex items-center justify-center shadow-xs animate-pulse ring-2 ring-[#1d1d1f]">
+                  {unreadBookingCount > 9 ? '9+' : unreadBookingCount}
+                </span>
+              )}
             </button>
+          )}
+
+          {/* 원장님 보안 도구: 비밀번호 변경(열쇠) 및 화면잠금 (기존 '잠금' 자리로 통합 배치) */}
+          {appMode === 'admin' && isAdminAuthenticated && (
+            <div className="flex items-center gap-1 bg-white/[0.08] p-1 rounded-xl border border-white/[0.08]">
+              <button
+                type="button"
+                onClick={() => setIsPasswordModalOpen(true)}
+                className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/[0.12] transition-all cursor-pointer"
+                title="원장님 비밀번호 변경"
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={logoutAdmin}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-[#ff453a] hover:bg-white/[0.12] transition-all cursor-pointer active:scale-95"
+                title="원장님 모드 화면 즉시 잠금"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline text-[11px] font-semibold">화면잠금</span>
+              </button>
+            </div>
           )}
         </div>
       </div>
+
+      {/* 원장님 비밀번호 변경 모달 */}
+      <ChangePasswordModal
+        isOpen={isPasswordModalOpen}
+        onClose={() => setIsPasswordModalOpen(false)}
+      />
     </header>
   );
 };

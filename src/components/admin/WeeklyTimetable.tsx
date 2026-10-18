@@ -195,18 +195,6 @@ export const WeeklyTimetable: React.FC = () => {
             <span className="w-3 h-3 rounded-md bg-slate-400 shrink-0"></span>
             <span className="text-[#86868b]">잠금</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">0~1명</span>
-            <span className="text-[#86868b]">학부모 예약가능</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">2~4명</span>
-            <span className="text-[#86868b]">학부모 마감</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[#86868b]">👻</span>
-            <span className="text-[#86868b]">결석 흔적</span>
-          </div>
         </div>
       </div>
 

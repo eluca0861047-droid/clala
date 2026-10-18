@@ -5,6 +5,8 @@ import { ParentView } from './components/parent/ParentView';
 import { AdminView } from './components/admin/AdminView';
 import { AdminLockScreen } from './components/auth/AdminLockScreen';
 import { ToastContainer } from './components/common/ToastContainer';
+import { AdminLiveAlertBanner } from './components/common/AdminLiveAlertBanner';
+import { AdminNotificationModal } from './components/common/AdminNotificationModal';
 
 const AppContent: React.FC = () => {
   const { appMode, isParentDirectLink, isAdminAuthenticated } = useReservation();
@@ -26,9 +28,11 @@ const AppContent: React.FC = () => {
         <TopDemoBar />
       </div>
 
-      {/* 2. 전역 알림 토스트 컨테이너 */}
+      {/* 2. 전역 알림 토스트 & 실시간 플로팅 알림 & 부재중 예약 모달 */}
       <div className="no-print">
         <ToastContainer />
+        <AdminLiveAlertBanner />
+        <AdminNotificationModal />
       </div>
 
       {/* 3. 모드별 메인 화면 렌더링 */}

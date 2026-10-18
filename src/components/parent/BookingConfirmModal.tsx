@@ -3,7 +3,7 @@ import { useReservation } from '../../context/ReservationContext';
 import { BookingType, CounselingType } from '../../types';
 import { formatKoreanDateTime, getEndTime } from '../../utils/dateUtils';
 import confetti from 'canvas-confetti';
-import { Calendar, Clock, MessageSquare, Sparkles, X } from 'lucide-react';
+import { Calendar, Clock, Sparkles, X } from 'lucide-react';
 
 interface BookingConfirmModalProps {
   isOpen: boolean;
@@ -26,7 +26,6 @@ export const BookingConfirmModal: React.FC<BookingConfirmModalProps> = ({
 }) => {
   const { currentStudent, createBooking } = useReservation();
   const [counselingType, setCounselingType] = useState<CounselingType>('in_person');
-  const [memo, setMemo] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isOpen || !currentStudent) return null;
@@ -48,7 +47,6 @@ export const BookingConfirmModal: React.FC<BookingConfirmModalProps> = ({
       type,
       duration,
       counselingType: type === 'counseling' ? counselingType : undefined,
-      memo: memo.trim() || undefined,
     });
 
     if (res.success) {
@@ -163,21 +161,6 @@ export const BookingConfirmModal: React.FC<BookingConfirmModalProps> = ({
               </div>
             </div>
           )}
-
-          {/* 원장님께 전달할 메모 */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-[#1d1d1f] flex items-center gap-1">
-              <MessageSquare className="w-3.5 h-3.5 text-[#86868b]" />
-              <span>원장님께 남기실 말씀 (선택)</span>
-            </label>
-            <textarea
-              value={memo}
-              onChange={(e) => setMemo(e.target.value)}
-              placeholder="예: 보강 시 체르니 30번 진도 연습 희망합니다."
-              rows={2}
-              className="w-full text-xs p-3 rounded-[16px] border border-black/[0.08] bg-white focus:outline-none focus:ring-2 focus:ring-[#0071e3]/20 focus:border-[#0071e3] resize-none placeholder:text-[#86868b]"
-            />
-          </div>
         </div>
 
         {/* 하단 확정 버튼 */}

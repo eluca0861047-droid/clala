@@ -144,35 +144,46 @@ export interface WeekDayItem {
 
 export interface WeekStructure {
   weekIndex: number; // 0, 1, 2, 3
-  weekLabel: string; // '이번 주', '다음 주', '3주차', '4주차'
-  rangeText: string; // '10.19 ~ 10.23'
+  weekLabel: string; // '1주차', '2주차', '3주차', '4주차'
+  rangeText: string; // '10.12 ~ 16'
   startDateStr: string;
   endDateStr: string;
   days: WeekDayItem[];
 }
 
-// 4주간 주차별 구조화된 데이터 반환 (월~금 평일 기준)
-export function getFourWeeksStructure(baseDate: Date): WeekStructure[] {
-  const mondayThisWeek = getMondayOfWeek(baseDate);
-  const weekLabels = ['이번 주', '다음 주', '3주차', '4주차'];
+// 4주간 주차별 구조화된 데이터 반환 (지정된 시작일 기준 5일 평일 순환)
+export function getFourWeeksStructure(startDate: Date): WeekStructure[] {
+  // 만약 주말(토=6, 일=0)이면 다음 월요일로 자동 보정
+  const start = new Date(startDate);
+  start.setHours(0, 0, 0, 0);
+  if (start.getDay() === 6) { // 토
+    start.setDate(start.getDate() + 2);
+  } else if (start.getDay() === 0) { // 일
+    start.setDate(start.getDate() + 1);
+  }
+
+  // 1주차, 2주차, 3주차, 4주차
+  const weekLabels = ['1주차', '2주차', '3주차', '4주차'];
   const weeks: WeekStructure[] = [];
 
-  for (let w = 0; w < 4; w++) {
-    const monday = new Date(mondayThisWeek);
-    monday.setDate(mondayThisWeek.getDate() + w * 7);
+  let currentPointer = new Date(start);
 
+  for (let w = 0; w < 4; w++) {
     const days: WeekDayItem[] = [];
-    for (let i = 0; i < 5; i++) {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-      const dayOfWeek = (i + 1) as DayOfWeek;
-      days.push({
-        dateStr: formatDate(d),
-        dayOfWeek,
-        dayNum: d.getDate(),
-        month: d.getMonth() + 1,
-        label: `${d.getMonth() + 1}/${d.getDate()} (${DAY_NAMES[dayOfWeek]})`,
-      });
+
+    while (days.length < 5) {
+      const dayOfWeek = currentPointer.getDay();
+      // 평일(월=1 ~ 금=5)만 추가
+      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+        days.push({
+          dateStr: formatDate(currentPointer),
+          dayOfWeek: dayOfWeek as DayOfWeek,
+          dayNum: currentPointer.getDate(),
+          month: currentPointer.getMonth() + 1,
+          label: `${currentPointer.getMonth() + 1}/${currentPointer.getDate()} (${DAY_NAMES[dayOfWeek as DayOfWeek]})`,
+        });
+      }
+      currentPointer.setDate(currentPointer.getDate() + 1);
     }
 
     const startMonth = days[0].month;

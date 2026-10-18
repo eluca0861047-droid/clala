@@ -38,11 +38,24 @@ import {
   dbResetAllData,
 } from '../services/supabaseService';
 
+import { playNotificationChime } from '../utils/soundUtils';
+
 export interface ToastMessage {
   id: string;
   type: 'success' | 'error' | 'info' | 'warning';
   title: string;
   message: string;
+}
+
+export interface LiveBookingAlert {
+  id: string;
+  studentName: string;
+  grade?: string;
+  date: string;
+  time: string;
+  typeLabel?: string;
+  message: string;
+  createdAt: string;
 }
 
 interface ReservationContextType {
@@ -127,6 +140,20 @@ interface ReservationContextType {
   loginAdmin: (password: string, rememberDevice?: boolean) => boolean;
   logoutAdmin: () => void;
   changeAdminPassword: (oldPassword: string, newPassword: string) => { success: boolean; error?: string };
+
+  // Booking Start Date (1주차 처음 시작일 - 원장님 제어)
+  bookingStartDate: string;
+  setBookingStartDate: (dateStr: string) => void;
+
+  // Booking Notification System (1: 실시간 팝업, 2: 부재중 확인 모달, 3: 헤더 알림 뱃지)
+  latestLiveAlert: LiveBookingAlert | null;
+  dismissLiveAlert: () => void;
+  unreadBookingCount: number;
+  unreadBookingLogs: ActivityLog[];
+  recentBookingLogs: ActivityLog[];
+  markAllBookingsAsRead: () => void;
+  isNotificationModalOpen: boolean;
+  setIsNotificationModalOpen: (open: boolean) => void;
 }
 
 const STORAGE_KEYS = {
@@ -141,6 +168,8 @@ const STORAGE_KEYS = {
   ADMIN_PASSWORD: 'pianoslot_admin_password_v1',
   ADMIN_AUTH: 'pianoslot_admin_auth_v1',
   ADMIN_REMEMBER: 'pianoslot_admin_remember_v1',
+  BOOKING_START_DATE: 'pianoslot_booking_start_date_v1',
+  LAST_CHECKED_BOOKING_TIME: 'pianoslot_last_checked_booking_time_v1',
 };
 
 const ReservationContext = createContext<ReservationContextType | null>(null);
@@ -240,6 +269,28 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return formatDate(new Date());
   });
 
+  // 보강 예약 1주차 시작일 (원장님이 변경 가능)
+  const [bookingStartDate, setBookingStartDateState] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(STORAGE_KEYS.BOOKING_START_DATE);
+      if (saved) return saved;
+    }
+    return formatDate(getMondayOfWeek(new Date()));
+  });
+
+  // 알림 시스템 상태 (1: 실시간 팝업, 2: 부재중 확인 모달, 3: 헤더 뱃지)
+  const [latestLiveAlert, setLatestLiveAlert] = useState<LiveBookingAlert | null>(null);
+  const [isNotificationModalOpen, setIsNotificationModalOpen] = useState<boolean>(false);
+  const [hasShownMissedModalThisSession, setHasShownMissedModalThisSession] = useState<boolean>(false);
+
+  const [lastCheckedBookingTime, setLastCheckedBookingTime] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(STORAGE_KEYS.LAST_CHECKED_BOOKING_TIME);
+      if (saved) return saved;
+    }
+    return new Date().toISOString();
+  });
+
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [adminTab, setAdminTab] = useState<'timetable' | 'students'>('timetable');
   const [adminHomeTimestamp, setAdminHomeTimestamp] = useState<number>(0);
@@ -333,6 +384,12 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   }, [simulatedToday]);
 
+  const recentLocalBookingIdsRef = useRef<Set<string>>(new Set());
+  const isParentDirectLinkRef = useRef(isParentDirectLink);
+  useEffect(() => {
+    isParentDirectLinkRef.current = isParentDirectLink;
+  }, [isParentDirectLink]);
+
   // Supabase Cloud Data Synchronizer & Realtime Subscriptions
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return;
@@ -365,9 +422,42 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
     // 2. 실시간(Realtime) 변경 사항 구독 (학부모 모바일 예약 시 원장님 PC 즉각 반영)
     const channel = supabase
       .channel('schema-db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, async () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, async (payload: any) => {
         const d = await fetchAllDataFromSupabase();
-        if (isMounted && d) setBookings(d.bookings);
+        if (isMounted && d) {
+          setBookings(d.bookings);
+          if (payload?.eventType === 'INSERT' && payload.new) {
+            const newRow = payload.new;
+            if (!recentLocalBookingIdsRef.current.has(newRow.id)) {
+              recentLocalBookingIdsRef.current.add(newRow.id);
+              const newStName = newRow.student_name || '원생';
+              const newDate = newRow.date || '';
+              const newTime = newRow.time || '';
+              const newTypeLabel =
+                newRow.type === 'special'
+                  ? '심화 특강(60분)'
+                  : newRow.type === 'counseling'
+                  ? '상담'
+                  : '보강 수업';
+
+              playNotificationChime();
+              setLatestLiveAlert({
+                id: 'alert_' + Date.now(),
+                studentName: newStName,
+                date: newDate,
+                time: newTime,
+                typeLabel: newTypeLabel,
+                message: `${newStName} 학생이 [${newDate} ${newTime}] ${newTypeLabel} 예약을 완료했습니다!`,
+                createdAt: new Date().toISOString(),
+              });
+
+              // 원장님이 화면을 보고 계실 때도 중앙 자동 팝업창 오픈!
+              if (!isParentDirectLinkRef.current) {
+                setIsNotificationModalOpen(true);
+              }
+            }
+          }
+        }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'absences' }, async () => {
         const d = await fetchAllDataFromSupabase();
@@ -393,7 +483,44 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
   }, [initialSeed]);
 
-  // 3. 기존 구형 코드(mj-2026 등 -2026으로 끝나거나 st-로 시작하는 코드)를 **-xxxxx 보안 코드로 자동 최신화
+  // 3. 브라우저 멀티 탭 간 실시간 팝업 & 차임벨 동기화 (원장님 화면 자동 팝업창 연동)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('BroadcastChannel' in window)) return;
+    const bc = new BroadcastChannel('pianoslot_bookings_sync');
+    bc.onmessage = (event) => {
+      if (event.data?.type === 'NEW_BOOKING') {
+        const { booking, studentName, grade } = event.data;
+        if (!isParentDirectLinkRef.current) {
+          playNotificationChime();
+          const typeLabel =
+            booking.type === 'special'
+              ? '심화 특강(60분)'
+              : booking.type === 'counseling'
+              ? '상담'
+              : '보강 수업';
+
+          setLatestLiveAlert({
+            id: 'alert_' + Date.now(),
+            studentName: studentName || '원생',
+            grade: grade,
+            date: booking.date,
+            time: booking.time,
+            typeLabel,
+            message: `${studentName} 학생이 [${booking.date} ${booking.time}] ${typeLabel} 예약을 완료했습니다!`,
+            createdAt: new Date().toISOString(),
+          });
+
+          // 원장님이 화면을 보고 계실 때 자동 팝업창 오픈!
+          setIsNotificationModalOpen(true);
+        }
+      }
+    };
+    return () => {
+      bc.close();
+    };
+  }, []);
+
+  // 4. 기존 구형 코드(mj-2026 등 -2026으로 끝나거나 st-로 시작하는 코드)를 **-xxxxx 보안 코드로 자동 최신화
   const hasNormalizedCodesRef = useRef(false);
   useEffect(() => {
     if (hasNormalizedCodesRef.current || students.length === 0) return;
@@ -428,6 +555,59 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
+
+  // 보강 예약 1주차 시작일 설정 (원장님 제어)
+  const setBookingStartDate = useCallback((dateStr: string) => {
+    setBookingStartDateState(dateStr);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.BOOKING_START_DATE, dateStr);
+    }
+    addToast('success', '예약 시작일 변경', `보강 예약 1주차 시작일이 [${dateStr}]로 설정되었습니다.`);
+  }, [addToast]);
+
+  // 최근 보강 예약 목록 (최신순)
+  const recentBookingLogs = useMemo(() => {
+    return logs
+      .filter((l) => l.type === 'booking')
+      .sort((a, b) => {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return timeB - timeA;
+      });
+  }, [logs]);
+
+  // 미확인 보강 예약 목록 (마지막 확인 시각 이후 등록된 예약)
+  const unreadBookingLogs = useMemo(() => {
+    return recentBookingLogs.filter((l) => {
+      if (!l.createdAt) return false;
+      return new Date(l.createdAt).getTime() > new Date(lastCheckedBookingTime).getTime();
+    });
+  }, [recentBookingLogs, lastCheckedBookingTime]);
+
+  const unreadBookingCount = unreadBookingLogs.length;
+
+  const markAllBookingsAsRead = useCallback(() => {
+    const nowIso = new Date().toISOString();
+    setLastCheckedBookingTime(nowIso);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.LAST_CHECKED_BOOKING_TIME, nowIso);
+    }
+  }, []);
+
+  const dismissLiveAlert = useCallback(() => {
+    setLatestLiveAlert(null);
+  }, []);
+
+  // 원장님 모드 진입 시 미확인 예약이 있으면 자동으로 부재중 모달 띄우기 (세션당 1회)
+  useEffect(() => {
+    if (appMode === 'admin' && isAdminAuthenticated && unreadBookingCount > 0 && !hasShownMissedModalThisSession) {
+      setHasShownMissedModalThisSession(true);
+      const timer = setTimeout(() => {
+        setIsNotificationModalOpen(true);
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [appMode, isAdminAuthenticated, unreadBookingCount, hasShownMissedModalThisSession]);
 
   // 원장님 관리자 최초 페이지로 이동 (원장님 모드일 때만 동작)
   const goToAdminHome = useCallback(() => {
@@ -704,6 +884,8 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
         createdAt: new Date().toISOString(),
       };
 
+      recentLocalBookingIdsRef.current.add(newBooking.id);
+
       setBookings((prev) => [newBooking, ...prev]);
 
       // 알림 로그 추가
@@ -727,6 +909,42 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       setLogs((prev) => [newLog, ...prev]);
 
+      // 실시간 알림 차임벨 및 라이브 팝업 배너 트리거 (Feature 1)
+      playNotificationChime();
+      setLatestLiveAlert({
+        id: 'alert_' + Date.now(),
+        studentName: targetStudent.name,
+        grade: targetStudent.grade,
+        date,
+        time,
+        typeLabel,
+        message: `${targetStudent.name} (${targetStudent.grade}) 학생이 [${date} ${time}] ${typeLabel} 예약을 완료했습니다!`,
+        createdAt: new Date().toISOString(),
+      });
+
+      // 원장님이 화면을 보고 계실 때 자동 팝업창 오픈 (학부모 전용 링크가 아닐 때)
+      if (!isParentDirectLink) {
+        setTimeout(() => {
+          setIsNotificationModalOpen(true);
+        }, 350);
+      }
+
+      // 다른 브라우저 탭(원장님 화면)에도 0초 즉각 팝업창 브로드캐스트
+      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        try {
+          const bc = new BroadcastChannel('pianoslot_bookings_sync');
+          bc.postMessage({
+            type: 'NEW_BOOKING',
+            booking: newBooking,
+            studentName: targetStudent.name,
+            grade: targetStudent.grade,
+          });
+          bc.close();
+        } catch (e) {
+          // ignore
+        }
+      }
+
       // Supabase 클라우드 동기화
       dbUpsertBooking(newBooking).catch(console.error);
       dbInsertLog(newLog).catch(console.error);
@@ -739,7 +957,7 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       return { success: true };
     },
-    [students, getSlot, addToast]
+    [students, getSlot, addToast, setLatestLiveAlert, isParentDirectLink]
   );
 
   /**
@@ -1256,6 +1474,16 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
     loginAdmin,
     logoutAdmin,
     changeAdminPassword,
+    bookingStartDate,
+    setBookingStartDate,
+    latestLiveAlert,
+    dismissLiveAlert,
+    unreadBookingCount,
+    unreadBookingLogs,
+    recentBookingLogs,
+    markAllBookingsAsRead,
+    isNotificationModalOpen,
+    setIsNotificationModalOpen,
   };
 
   return <ReservationContext.Provider value={value}>{children}</ReservationContext.Provider>;

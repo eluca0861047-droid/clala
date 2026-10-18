@@ -20,16 +20,23 @@ export const BookingTab: React.FC = () => {
     getSlot,
     getAvailableCountForDay,
     simulatedToday,
+    bookingStartDate,
+    setBookingStartDate,
+    appMode,
   } = useReservation();
 
-  // 기준 날짜를 기반으로 4주간 주차별 구조화된 데이터 생성
-  const todayObj = useMemo(() => parseDate(simulatedToday), [simulatedToday]);
-  const fourWeeks = useMemo(() => getFourWeeksStructure(todayObj), [todayObj]);
+  // 원장님이 지정한 1주차 처음 시작일 기준으로 4주간 주차별 구조화된 데이터 생성
+  const startDateObj = useMemo(() => {
+    const raw = bookingStartDate || simulatedToday;
+    return parseDate(raw);
+  }, [bookingStartDate, simulatedToday]);
 
-  // 현재 선택된 주차 인덱스 (0: 이번 주, 1: 다음 주, 2: 3주차, 3: 4주차)
+  const fourWeeks = useMemo(() => getFourWeeksStructure(startDateObj), [startDateObj]);
+
+  // 현재 선택된 주차 인덱스 (0: 1주차, 1: 2주차, 2: 3주차, 3: 4주차)
   const [selectedWeekIndex, setSelectedWeekIndex] = useState<number>(0);
 
-  // 선택된 날짜 (기본값: 오늘 또는 이번 주 첫날)
+  // 선택된 날짜 (기본값: 오늘 또는 1주차 첫날)
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     const allDays = fourWeeks.flatMap((w) => w.days);
     const found = allDays.find((d) => d.dateStr === simulatedToday);
@@ -47,12 +54,19 @@ export const BookingTab: React.FC = () => {
   // 현재 활성화된 주의 5일 데이터
   const currentWeek = fourWeeks[selectedWeekIndex] || fourWeeks[0];
 
-  // 오늘 날짜(simulatedToday) 변경 시 선택 날짜 자동 동기화
+  // 요일 범위 텍스트 (예: 월~금, 수~화 등 시작일에 따라 자동 계산)
+  const firstDayName = DAY_NAMES[currentWeek.days[0]?.dayOfWeek || 1];
+  const lastDayName = DAY_NAMES[currentWeek.days[4]?.dayOfWeek || 5];
+  const dateSectionTitle = `날짜 선택 (${firstDayName}~${lastDayName})`;
+
+  // 오늘 날짜(simulatedToday) 또는 시작일 변경 시 선택 날짜 자동 동기화
   useEffect(() => {
     const allDays = fourWeeks.flatMap((w) => w.days);
     const found = allDays.find((d) => d.dateStr === simulatedToday);
     if (found) {
       setSelectedDate(found.dateStr);
+    } else if (fourWeeks[0]?.days[0]?.dateStr) {
+      setSelectedDate(fourWeeks[0].days[0].dateStr);
     }
   }, [simulatedToday, fourWeeks]);
 
@@ -124,12 +138,26 @@ export const BookingTab: React.FC = () => {
     <div className="space-y-4 pb-20">
       {/* 4주간 날짜 선택기 (주차 탭 + 5열 원터치 그리드) - Apple Continuous Card */}
       <div className="bg-white/90 backdrop-blur-xl p-4 rounded-[24px] shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-black/[0.06] space-y-3.5">
-        {/* 상단 타이틀 */}
+        {/* 상단 타이틀 & 원장님 제어 */}
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-1.5 text-xs font-bold text-[#1d1d1f]">
             <Calendar className="w-4 h-4 text-[#0071e3]" />
-            <span>날짜 선택 (월~금)</span>
+            <span>{dateSectionTitle}</span>
           </div>
+
+          {/* 원장님 관리자 모드일 때 학부모 화면에서도 1주차 시작일 직접 변경 가능 */}
+          {appMode === 'admin' && (
+            <div className="flex items-center gap-1.5 bg-black/[0.04] px-2 py-0.5 rounded-xl border border-black/[0.04]">
+              <span className="text-[10px] text-[#86868b] font-medium">1주차 시작:</span>
+              <input
+                type="date"
+                value={bookingStartDate}
+                onChange={(e) => setBookingStartDate(e.target.value)}
+                className="bg-transparent text-[11px] font-bold text-[#0071e3] focus:outline-none cursor-pointer"
+                title="원장님 권한: 1주차 처음 시작일 변경"
+              />
+            </div>
+          )}
         </div>
 
         {/* 1. 주차 선택 탭 (4열 Apple Segmented Pill) */}

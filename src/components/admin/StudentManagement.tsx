@@ -14,7 +14,6 @@ import {
   Search,
   ArrowUp,
   ArrowDown,
-  RefreshCw,
 } from 'lucide-react';
 
 export const StudentManagement: React.FC = () => {
@@ -24,7 +23,6 @@ export const StudentManagement: React.FC = () => {
     removeRegularSlot,
     createStudent,
     deleteStudent,
-    regenerateAccessCode,
     getStudentShareUrl,
     addToast,
   } = useReservation();
@@ -340,46 +338,8 @@ const getChosung = (str: string): string => {
                     </div>
                   </div>
 
-                  {/* 삭제 버튼 */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (window.confirm(`${student.name} 학생을 정말 삭제하시겠습니까? 관련 예약도 모두 삭제됩니다.`)) {
-                        deleteStudent(student.id);
-                      }
-                    }}
-                    className="text-[#86868b] hover:text-[#ff3b30] p-1.5 rounded-full hover:bg-black/[0.05] transition-colors"
-                    title="원생 삭제"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-
-                {/* 학부모 전용 예약 링크 (Apple Privacy Capsule) */}
-                <div className="mt-3.5 p-3.5 bg-[#0071e3]/[0.06] rounded-[18px] border border-[#0071e3]/15 flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-[#0071e3] flex items-center gap-1">
-                      <span>🔗 학부모 전용 안심 링크</span>
-                      <span className="text-[10px] text-[#0071e3] font-semibold bg-white/80 px-1.5 py-0.2 rounded-full border border-[#0071e3]/20">
-                        타 학생 차단
-                      </span>
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-mono font-bold text-[#0071e3] bg-white/80 px-2 py-0.5 rounded-md border border-[#0071e3]/20 shadow-2xs">
-                        코드: {student.accessCode || student.id}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => regenerateAccessCode(student.id)}
-                        className="p-1 rounded-md bg-white/60 hover:bg-white text-[#0071e3]/70 hover:text-[#0071e3] border border-[#0071e3]/15 transition-all cursor-pointer active:scale-90"
-                        title="새로운 보안 접속 코드 재발급 (**-xxxxx)"
-                      >
-                        <RefreshCw className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
+                  {/* 상단 우측 액션 도구: 카톡 전송용 링크 복사, 새 탭 열기, 원생 삭제 */}
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"
                       onClick={() => {
@@ -391,21 +351,35 @@ const getChosung = (str: string): string => {
                           `${student.name} 학부모 전용 링크가 클립보드에 복사되었습니다! 카카오톡으로 전송하세요.`
                         );
                       }}
-                      className="flex-1 py-1.5 px-2.5 rounded-[12px] bg-[#0071e3] hover:bg-[#0077ed] active:scale-95 text-white text-xs font-semibold transition-all flex items-center justify-center gap-1 shadow-xs"
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-[12px] bg-[#0071e3]/10 hover:bg-[#0071e3] text-[#0071e3] hover:text-white transition-all text-xs font-semibold cursor-pointer active:scale-95"
+                      title="카톡 전송용 학부모 링크 복사"
                     >
                       <Share2 className="w-3.5 h-3.5" />
-                      <span>카톡 전송용 링크 복사</span>
+                      <span className="text-[11px] font-semibold">링크복사</span>
                     </button>
 
                     <a
                       href={getStudentShareUrl(student)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-1.5 rounded-[12px] bg-white/80 hover:bg-white text-[#0071e3] border border-[#0071e3]/20 text-xs font-semibold transition-all flex items-center justify-center shadow-xs"
+                      className="p-1.5 rounded-[12px] bg-black/[0.04] hover:bg-[#0071e3]/10 text-[#86868b] hover:text-[#0071e3] transition-all flex items-center justify-center cursor-pointer active:scale-95"
                       title="학부모 화면 새 탭에서 열어보기"
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
                     </a>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm(`${student.name} 학생을 정말 삭제하시겠습니까? 관련 예약도 모두 삭제됩니다.`)) {
+                          deleteStudent(student.id);
+                        }
+                      }}
+                      className="text-[#86868b] hover:text-[#ff3b30] p-1.5 rounded-[12px] hover:bg-black/[0.05] transition-colors cursor-pointer active:scale-95"
+                      title="원생 삭제"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
 
