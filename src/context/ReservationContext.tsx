@@ -10,6 +10,7 @@ import {
   BookingType,
   CounselingType,
   SlotStatusType,
+  FocusedTimetableSlot,
 } from '../types';
 import {
   TIME_SLOTS,
@@ -19,6 +20,7 @@ import {
   formatDate,
   getMondayOfWeek,
   getWeekdays,
+  getRelativeTime,
 } from '../utils/dateUtils';
 import { getInitialSeedData } from '../utils/seedData';
 import { generateStudentAccessCode, isLegacyAccessCode } from '../utils/codeUtils';
@@ -39,6 +41,13 @@ import {
 } from '../services/supabaseService';
 
 import { playNotificationChime } from '../utils/soundUtils';
+import {
+  PushNotificationStatus,
+  getNotificationPermissionStatus,
+  requestNotificationPermission,
+  sendSystemNotification,
+  sendTestNotification,
+} from '../services/pushNotificationService';
 
 export interface ToastMessage {
   id: string;
@@ -127,8 +136,8 @@ interface ReservationContextType {
   removeToast: (id: string) => void;
 
   // Admin Navigation
-  adminTab: 'timetable' | 'students';
-  setAdminTab: (tab: 'timetable' | 'students') => void;
+  adminTab: 'timetable' | 'students' | 'feed';
+  setAdminTab: (tab: 'timetable' | 'students' | 'feed') => void;
   adminHomeTimestamp: number;
   goToAdminHome: () => void;
 
@@ -151,9 +160,22 @@ interface ReservationContextType {
   unreadBookingCount: number;
   unreadBookingLogs: ActivityLog[];
   recentBookingLogs: ActivityLog[];
+  readBookingIds: string[];
   markAllBookingsAsRead: () => void;
+  markBookingAsRead: (id: string) => void;
   isNotificationModalOpen: boolean;
   setIsNotificationModalOpen: (open: boolean) => void;
+  closeNotificationModal: () => void;
+
+  // Timetable Slot Target Focus & Smooth Scroll
+  focusedTimetableSlot: FocusedTimetableSlot | null;
+  focusTimetableSlot: (date: string, time: string, studentName?: string) => void;
+  clearFocusedTimetableSlot: () => void;
+
+  // Native / PWA Mobile Push Notification System
+  pushNotificationStatus: PushNotificationStatus;
+  requestPushPermission: () => Promise<PushNotificationStatus>;
+  sendTestPushNotification: () => Promise<boolean>;
 }
 
 const STORAGE_KEYS = {
@@ -170,6 +192,7 @@ const STORAGE_KEYS = {
   ADMIN_REMEMBER: 'pianoslot_admin_remember_v1',
   BOOKING_START_DATE: 'pianoslot_booking_start_date_v1',
   LAST_CHECKED_BOOKING_TIME: 'pianoslot_last_checked_booking_time_v1',
+  READ_BOOKING_IDS: 'pianoslot_read_booking_ids_v1',
 };
 
 const ReservationContext = createContext<ReservationContextType | null>(null);
@@ -281,19 +304,27 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
   // 알림 시스템 상태 (1: 실시간 팝업, 2: 부재중 확인 모달, 3: 헤더 뱃지)
   const [latestLiveAlert, setLatestLiveAlert] = useState<LiveBookingAlert | null>(null);
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState<boolean>(false);
-  const [hasShownMissedModalThisSession, setHasShownMissedModalThisSession] = useState<boolean>(false);
+  const dismissedUnreadIdsRef = useRef<Set<string>>(new Set());
 
-  const [lastCheckedBookingTime, setLastCheckedBookingTime] = useState<string>(() => {
+  const [readBookingIds, setReadBookingIds] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(STORAGE_KEYS.LAST_CHECKED_BOOKING_TIME);
-      if (saved) return saved;
+      const saved = localStorage.getItem(STORAGE_KEYS.READ_BOOKING_IDS);
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          // ignore
+        }
+      }
     }
-    return new Date().toISOString();
+    // 최초 실행 시 기본 데모 시드 예약은 이미 확인된 것으로 간주
+    return initialSeed.bookings.map((b) => b.id);
   });
 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const [adminTab, setAdminTab] = useState<'timetable' | 'students'>('timetable');
+  const [adminTab, setAdminTab] = useState<'timetable' | 'students' | 'feed'>('timetable');
   const [adminHomeTimestamp, setAdminHomeTimestamp] = useState<number>(0);
+  const [focusedTimetableSlot, setFocusedTimetableSlot] = useState<FocusedTimetableSlot | null>(null);
 
   // 원장님 모드 보안 인증 상태 (기기 기억하기 또는 현재 세션 로그인 확인)
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
@@ -451,7 +482,17 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 createdAt: new Date().toISOString(),
               });
 
-              // 원장님이 화면을 보고 계실 때도 중앙 자동 팝업창 오픈!
+              // 모바일 백그라운드 PWA 시스템 푸시 알림 발송
+              sendSystemNotification({
+                title: `🎵 보강 예약 접수: ${newStName} 학생`,
+                body: `[${newDate} ${newTime}] ${newTypeLabel} 예약이 접수되었습니다.`,
+                date: newDate,
+                time: newTime,
+                studentName: newStName,
+                tag: `booking-${newRow.id}`,
+              }).catch(console.error);
+
+              // 앱 켜진 상태에서 새 예약 알림 도착 시 중앙 팝업창 자동 오픈
               if (!isParentDirectLinkRef.current) {
                 setIsNotificationModalOpen(true);
               }
@@ -510,8 +551,20 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
             createdAt: new Date().toISOString(),
           });
 
-          // 원장님이 화면을 보고 계실 때 자동 팝업창 오픈!
-          setIsNotificationModalOpen(true);
+          // 모바일 백그라운드 PWA 시스템 푸시 알림 발송
+          sendSystemNotification({
+            title: `🎵 보강 예약 접수: ${studentName || '원생'} 학생`,
+            body: `[${booking.date} ${booking.time}] ${typeLabel} 예약이 접수되었습니다.`,
+            date: booking.date,
+            time: booking.time,
+            studentName: studentName,
+            tag: `booking-${booking.id}`,
+          }).catch(console.error);
+
+          // 앱 켜진 상태에서 새 예약 알림 도착 시 중앙 팝업창 자동 오픈
+          if (!isParentDirectLinkRef.current) {
+            setIsNotificationModalOpen(true);
+          }
         }
       }
     };
@@ -565,49 +618,159 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
     addToast('success', '예약 시작일 변경', `보강 예약 1주차 시작일이 [${dateStr}]로 설정되었습니다.`);
   }, [addToast]);
 
-  // 최근 보강 예약 목록 (최신순)
+  // 최근 보강 예약 목록 (실제 bookings 테이블 및 logs 통합, 완전 중복 제거, 최신 신청순)
   const recentBookingLogs = useMemo(() => {
-    return logs
-      .filter((l) => l.type === 'booking')
-      .sort((a, b) => {
-        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return timeB - timeA;
-      });
-  }, [logs]);
+    // 1. bookings 테이블의 실제 예약들 (신규 예약의 가장 확실한 원천)
+    const bookingMap = new Map<string, ActivityLog>();
 
-  // 미확인 보강 예약 목록 (마지막 확인 시각 이후 등록된 예약)
-  const unreadBookingLogs = useMemo(() => {
-    return recentBookingLogs.filter((l) => {
-      if (!l.createdAt) return false;
-      return new Date(l.createdAt).getTime() > new Date(lastCheckedBookingTime).getTime();
+    bookings
+      .filter((b) => b.type === 'makeup' || b.type === 'special' || b.type === 'counseling')
+      .forEach((b) => {
+        const typeLabel =
+          b.type === 'special'
+            ? '심화 특강'
+            : b.type === 'counseling'
+            ? `상담(${b.counselingType === 'in_person' ? '대면' : '전화'})`
+            : '보강 수업';
+
+        bookingMap.set(b.id, {
+          id: b.id,
+          type: 'booking' as const,
+          message: `${b.studentName || '원생'} 학생이 [${b.date} ${b.time}] ${typeLabel} 예약을 완료했습니다.`,
+          timestamp: getRelativeTime(b.createdAt, '방금 전'),
+          studentName: b.studentName,
+          createdAt: b.createdAt || new Date().toISOString(),
+          date: b.date,
+          time: b.time,
+          bookingId: b.id,
+        });
+      });
+
+    // 2. logs 테이블에서 아직 등록되지 않은 고유 예약 로그만 추가 (bookingId 및 id 기준 중복 원천 차단)
+    const registeredBookingIds = new Set(bookings.map((b) => b.id));
+
+    logs
+      .filter((l) => l.type === 'booking')
+      .forEach((l) => {
+        // 이미 bookings 테이블에 등록된 예약이면 중복이므로 건너뜀
+        if (l.bookingId && registeredBookingIds.has(l.bookingId)) return;
+        if (registeredBookingIds.has(l.id)) return;
+        if (bookingMap.has(l.id)) return;
+
+        // 동일 학생 + 동일 예약 일시 메시지인 경우도 중복 건너뜀 (안전망)
+        const isDuplicateContent = Array.from(bookingMap.values()).some(
+          (item) => item.studentName === l.studentName && item.date === l.date && item.time === l.time
+        );
+        if (isDuplicateContent) return;
+
+        bookingMap.set(l.id, {
+          ...l,
+          timestamp: getRelativeTime(l.createdAt, l.timestamp || '방금 전'),
+        });
+      });
+
+    // 3. 최신 예약 신청일(createdAt) 기준 완벽한 내림차순 정렬 (가장 최근 신청된 예약이 최상단!)
+    return Array.from(bookingMap.values()).sort((a, b) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return timeB - timeA;
     });
-  }, [recentBookingLogs, lastCheckedBookingTime]);
+  }, [bookings, logs]);
+
+  // 미확인 보강 예약 목록 (원장님이 아직 확인 완료 처리하지 않은 예약)
+  const unreadBookingLogs = useMemo(() => {
+    return recentBookingLogs.filter((l) => !readBookingIds.includes(l.id));
+  }, [recentBookingLogs, readBookingIds]);
 
   const unreadBookingCount = unreadBookingLogs.length;
 
   const markAllBookingsAsRead = useCallback(() => {
-    const nowIso = new Date().toISOString();
-    setLastCheckedBookingTime(nowIso);
+    const allIds = Array.from(new Set([...readBookingIds, ...recentBookingLogs.map((l) => l.id)]));
+    setReadBookingIds(allIds);
     if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_KEYS.LAST_CHECKED_BOOKING_TIME, nowIso);
+      localStorage.setItem(STORAGE_KEYS.READ_BOOKING_IDS, JSON.stringify(allIds));
+      localStorage.setItem(STORAGE_KEYS.LAST_CHECKED_BOOKING_TIME, new Date().toISOString());
     }
-  }, []);
+    dismissedUnreadIdsRef.current.clear();
+  }, [readBookingIds, recentBookingLogs]);
+
+  const markBookingAsRead = useCallback(
+    (id: string) => {
+      setReadBookingIds((prev) => {
+        const newIds = new Set(prev);
+        newIds.add(id);
+        const matched = recentBookingLogs.find((l) => l.id === id || l.bookingId === id);
+        if (matched) {
+          newIds.add(matched.id);
+          if (matched.bookingId) newIds.add(matched.bookingId);
+        }
+        const updated = Array.from(newIds);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(STORAGE_KEYS.READ_BOOKING_IDS, JSON.stringify(updated));
+        }
+        return updated;
+      });
+    },
+    [recentBookingLogs]
+  );
+
+  const closeNotificationModal = useCallback(() => {
+    unreadBookingLogs.forEach((b) => dismissedUnreadIdsRef.current.add(b.id));
+    setIsNotificationModalOpen(false);
+  }, [unreadBookingLogs]);
 
   const dismissLiveAlert = useCallback(() => {
     setLatestLiveAlert(null);
   }, []);
 
-  // 원장님 모드 진입 시 미확인 예약이 있으면 자동으로 부재중 모달 띄우기 (세션당 1회)
+  // 모바일 백그라운드 PWA 시스템 푸시 알림 상태 및 제어 함수
+  const [pushNotificationStatus, setPushNotificationStatus] = useState<PushNotificationStatus>(() => {
+    return getNotificationPermissionStatus();
+  });
+
   useEffect(() => {
-    if (appMode === 'admin' && isAdminAuthenticated && unreadBookingCount > 0 && !hasShownMissedModalThisSession) {
-      setHasShownMissedModalThisSession(true);
-      const timer = setTimeout(() => {
-        setIsNotificationModalOpen(true);
-      }, 600);
-      return () => clearTimeout(timer);
+    setPushNotificationStatus(getNotificationPermissionStatus());
+  }, []);
+
+  const requestPushPermission = useCallback(async () => {
+    const res = await requestNotificationPermission();
+    setPushNotificationStatus(res);
+    if (res === 'granted') {
+      addToast('success', '모바일 알림 활성화', '스마트폰 잠금화면 알림이 성공적으로 설정되었습니다!');
+      sendTestNotification().catch(console.error);
+    } else if (res === 'denied') {
+      addToast('warning', '알림 권한 차단됨', '브라우저 설정에서 알림 권한을 허용해 주세요.');
     }
-  }, [appMode, isAdminAuthenticated, unreadBookingCount, hasShownMissedModalThisSession]);
+    return res;
+  }, [addToast]);
+
+  const sendTestPushNotification = useCallback(async () => {
+    const ok = await sendTestNotification();
+    if (ok) {
+      addToast('info', '테스트 알림 발송', '스마트폰 화면에 테스트 알림이 발송되었습니다.');
+    } else {
+      addToast('warning', '알림 권한 필요', '먼저 모바일 알림 켜기 버튼을 눌러 권한을 허용해 주세요.');
+    }
+    return ok;
+  }, [addToast]);
+
+  // 원장님 모드 진입 시 및 새 예약 알람 도착 시 자동으로 팝업창 띄우기
+  useEffect(() => {
+    if (appMode === 'admin' && isAdminAuthenticated && unreadBookingCount > 0) {
+      // 아직 이번 세션에서 닫지 않은 새로운 미확인 예약이 있는지 확인
+      const hasNewUndismissed = unreadBookingLogs.some(
+        (b) => !dismissedUnreadIdsRef.current.has(b.id)
+      );
+
+      if (hasNewUndismissed) {
+        const timer = setTimeout(() => {
+          playNotificationChime();
+          setIsNotificationModalOpen(true);
+        }, 400);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [appMode, isAdminAuthenticated, unreadBookingCount, unreadBookingLogs]);
 
   // 원장님 관리자 최초 페이지로 이동 (원장님 모드일 때만 동작)
   const goToAdminHome = useCallback(() => {
@@ -619,6 +782,26 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
     addToast('info', '원장님 모드 첫 화면', '주간 타임테이블 첫 화면으로 이동했습니다.');
   }, [appMode, addToast]);
+
+  // 주간 시간표 특정 날짜/시간으로 즉시 이동 및 포커싱 (원장님 자동 팝업 연동)
+  const focusTimetableSlot = useCallback(
+    (date: string, time: string, studentName?: string) => {
+      setAppModeSecure('admin');
+      setAdminTab('timetable');
+      setIsNotificationModalOpen(false);
+      setFocusedTimetableSlot({
+        date,
+        time,
+        timestamp: Date.now(),
+        studentName,
+      });
+    },
+    [setAppModeSecure]
+  );
+
+  const clearFocusedTimetableSlot = useCallback(() => {
+    setFocusedTimetableSlot(null);
+  }, []);
 
   // 원장님 모드 로그인
   const loginAdmin = useCallback(
@@ -635,11 +818,18 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
           }
         }
         addToast('success', '원장님 인증 완료', '원장님 모드로 안전하게 접속되었습니다.');
+        // 미확인 예약이 있으면 로그인 직후 자동 팝업
+        setTimeout(() => {
+          if (unreadBookingLogs.length > 0) {
+            playNotificationChime();
+            setIsNotificationModalOpen(true);
+          }
+        }, 400);
         return true;
       }
       return false;
     },
-    [adminPassword, addToast]
+    [adminPassword, addToast, unreadBookingLogs]
   );
 
   // 원장님 모드 잠금 / 로그아웃
@@ -905,6 +1095,9 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
         timestamp: '방금 전',
         studentName: targetStudent.name,
         createdAt: new Date().toISOString(),
+        date,
+        time,
+        bookingId: newBooking.id,
       };
 
       setLogs((prev) => [newLog, ...prev]);
@@ -922,7 +1115,17 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
         createdAt: new Date().toISOString(),
       });
 
-      // 원장님이 화면을 보고 계실 때 자동 팝업창 오픈 (학부모 전용 링크가 아닐 때)
+      // 모바일 백그라운드 PWA 시스템 푸시 알림 발송
+      sendSystemNotification({
+        title: `🎵 보강 예약 확정: ${targetStudent.name} 학생`,
+        body: `[${date} ${time}] ${typeLabel} 예약이 확정되었습니다.`,
+        date,
+        time,
+        studentName: targetStudent.name,
+        tag: `booking-${newBooking.id}`,
+      }).catch(console.error);
+
+      // 앱 켜진 상태에서 새 예약 알림 도착 시 중앙 팝업창 자동 오픈
       if (!isParentDirectLink) {
         setTimeout(() => {
           setIsNotificationModalOpen(true);
@@ -1481,9 +1684,18 @@ export const ReservationProvider: React.FC<{ children: React.ReactNode }> = ({ c
     unreadBookingCount,
     unreadBookingLogs,
     recentBookingLogs,
+    readBookingIds,
     markAllBookingsAsRead,
+    markBookingAsRead,
     isNotificationModalOpen,
     setIsNotificationModalOpen,
+    closeNotificationModal,
+    focusedTimetableSlot,
+    focusTimetableSlot,
+    clearFocusedTimetableSlot,
+    pushNotificationStatus,
+    requestPushPermission,
+    sendTestPushNotification,
   };
 
   return <ReservationContext.Provider value={value}>{children}</ReservationContext.Provider>;

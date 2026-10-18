@@ -58,6 +58,16 @@ export interface ActivityLog {
   timestamp: string;
   studentName?: string;
   createdAt?: string;
+  date?: string;
+  time?: string;
+  bookingId?: string;
+}
+
+export interface FocusedTimetableSlot {
+  date: string;
+  time: string;
+  timestamp: number;
+  studentName?: string;
 }
 
 // 30분 단위 계산된 슬롯 상태

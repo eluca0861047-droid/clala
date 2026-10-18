@@ -258,7 +258,7 @@ export const SlotDetailModal: React.FC<SlotDetailModalProps> = ({
                     ? `원장님 상담 (${booking.counselingType === 'in_person' ? '대면' : '전화'})`
                     : isSpecial
                     ? `심화 특강 (60분${isSpecialSecondHalf ? ' 후반' : ''})`
-                    : '보강 수업 (30분)';
+                    : '보강 수업';
 
                   return (
                     <div
@@ -432,7 +432,7 @@ export const SlotDetailModal: React.FC<SlotDetailModalProps> = ({
                         : 'border-slate-200 text-slate-700 hover:bg-slate-50'
                     }`}
                   >
-                    보강 (30분)
+                    보강 수업
                   </button>
                   <button
                     type="button"
@@ -454,7 +454,7 @@ export const SlotDetailModal: React.FC<SlotDetailModalProps> = ({
                         : 'border-slate-200 text-slate-700 hover:bg-slate-50'
                     }`}
                   >
-                    상담 (30분)
+                    상담
                   </button>
                 </div>
               </div>

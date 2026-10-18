@@ -336,9 +336,6 @@ export const BookingTab: React.FC = () => {
                     DAY_NAMES[selectedDayIndex] || ''
                   })`}{' '}
                 {selectedTime}
-                <span className="text-xs font-semibold text-[#0071e3] ml-1.5">
-                  ({duration}분)
-                </span>
               </p>
             </div>
             <button

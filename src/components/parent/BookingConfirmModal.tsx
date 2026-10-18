@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useReservation } from '../../context/ReservationContext';
 import { BookingType, CounselingType } from '../../types';
-import { formatKoreanDateTime, getEndTime } from '../../utils/dateUtils';
+import { formatKoreanDateTime } from '../../utils/dateUtils';
 import confetti from 'canvas-confetti';
 import { Calendar, Clock, Sparkles, X } from 'lucide-react';
 
@@ -30,13 +30,12 @@ export const BookingConfirmModal: React.FC<BookingConfirmModalProps> = ({
 
   if (!isOpen || !currentStudent) return null;
 
-  const endTime = getEndTime(time, duration);
   const typeLabel =
     type === 'makeup'
-      ? '보강 수업 (30분)'
+      ? '보강 수업'
       : type === 'special'
-      ? '심화 특강 (60분 연속)'
-      : '원장님 1:1 상담 (30분)';
+      ? '심화 특강'
+      : '원장님 1:1 상담';
 
   const handleConfirm = () => {
     setErrorMsg(null);
@@ -113,7 +112,7 @@ export const BookingConfirmModal: React.FC<BookingConfirmModalProps> = ({
 
             <div className="flex items-center gap-2 text-[#1d1d1f] font-bold text-lg pt-1">
               <Calendar className="w-5 h-5 text-[#0071e3] shrink-0" />
-              <span>{formatKoreanDateTime(date, time)} ~ {endTime}</span>
+              <span>{formatKoreanDateTime(date, time)}</span>
             </div>
 
             {type === 'special' && (

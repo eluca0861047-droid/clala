@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 
 export const WeeklyTimetable: React.FC = () => {
-  const { getSlot, simulatedToday, adminHomeTimestamp, addToast } = useReservation();
+  const { getSlot, simulatedToday, adminHomeTimestamp, addToast, focusedTimetableSlot } = useReservation();
 
   // 주간 시간표 인쇄 / PDF 저장 핸들러
   const handlePrint = () => {
@@ -40,6 +40,9 @@ export const WeeklyTimetable: React.FC = () => {
   // 선택된 슬롯 (모달용)
   const [selectedSlot, setSelectedSlot] = useState<CalculatedSlot | null>(null);
 
+  // 강조 표시할 슬롯 키 (예: "2026-10-21-15:00")
+  const [highlightedSlotKey, setHighlightedSlotKey] = useState<string | null>(null);
+
   // 기준 오늘 날짜 변경 시 현재 표시 주차 자동 동기화
   useEffect(() => {
     setCurrentMonday(todayMonday);
@@ -52,6 +55,53 @@ export const WeeklyTimetable: React.FC = () => {
       setSelectedSlot(null);
     }
   }, [adminHomeTimestamp, todayMonday]);
+
+  // focusedTimetableSlot이 전달되면 해당 주차로 이동하고 해당 시간 슬롯으로 부드럽게 스크롤 & 강조 펄스
+  useEffect(() => {
+    if (!focusedTimetableSlot || !focusedTimetableSlot.date || !focusedTimetableSlot.time) return;
+
+    const { date, time } = focusedTimetableSlot;
+
+    // 1. 해당 날짜가 속한 주의 월요일로 시간표 전환
+    try {
+      const targetMonday = getMondayOfWeek(parseDate(date));
+      setCurrentMonday(targetMonday);
+    } catch (e) {
+      console.error('Invalid date for focused slot:', date, e);
+    }
+
+    const slotKey = `${date}-${time}`;
+    setHighlightedSlotKey(slotKey);
+
+    // 2. DOM 렌더링 완료 후 해당 슬롯 위치로 화면 정중앙 부드러운 스크롤 이동
+    const scrollToTargetCell = () => {
+      const cellEl = document.getElementById(`slot-cell-${date}-${time}`);
+      if (cellEl) {
+        cellEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        return true;
+      }
+      return false;
+    };
+
+    // 1차 시도 (150ms 후)
+    const timer1 = setTimeout(() => {
+      if (!scrollToTargetCell()) {
+        // 주차 전환으로 재렌더링 중일 경우 2차 재시도 (250ms 후)
+        const timer2 = setTimeout(scrollToTargetCell, 250);
+        return () => clearTimeout(timer2);
+      }
+    }, 150);
+
+    // 3. 5초 후 강조 효과 자동 종료
+    const clearTimer = setTimeout(() => {
+      setHighlightedSlotKey(null);
+    }, 5000);
+
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(clearTimer);
+    };
+  }, [focusedTimetableSlot]);
 
   // 주간 이동 핸들러
   const handlePrevWeek = () => {
@@ -241,9 +291,8 @@ export const WeeklyTimetable: React.FC = () => {
                 className="grid grid-cols-[80px_repeat(5,1fr)] print:grid-cols-[48px_repeat(5,1fr)] gap-2 print:gap-1 print:break-inside-avoid print:page-break-inside-avoid"
               >
                 {/* 세로 시간 레이블 */}
-                <div className="min-h-[72px] sm:min-h-[76px] print:min-h-0 print:h-[12.8mm] flex flex-col items-center justify-center text-xs print:text-[10px] font-extrabold text-slate-600 bg-slate-50/70 print:bg-slate-100 rounded-2xl print:rounded border border-slate-100 print:border-slate-300">
+                <div className="min-h-[72px] sm:min-h-[76px] print:min-h-0 print:h-[12.8mm] flex flex-col items-center justify-center text-xs sm:text-[13px] print:text-[10px] font-extrabold text-slate-700 bg-slate-50/70 print:bg-slate-100 rounded-2xl print:rounded border border-slate-100 print:border-slate-300">
                   <span>{time}</span>
-                  <span className="text-[10px] text-slate-400 font-normal print:hidden">30분</span>
                 </div>
 
                 {/* 5개 요일별 슬롯 셀 */}
@@ -280,9 +329,13 @@ export const WeeklyTimetable: React.FC = () => {
                     }),
                   ];
 
+                  const isHighlighted = highlightedSlotKey === `${day.dateStr}-${time}`;
+
                   // 셀 배경 스타일 결정
                   let cellBg = '';
-                  if (isLocked) {
+                  if (isHighlighted) {
+                    cellBg = 'ring-4 ring-[#ff9500] ring-offset-2 ring-offset-white shadow-[0_0_24px_rgba(255,149,0,0.6)] z-20 scale-[1.03] animate-pulse bg-amber-50/95 border-[#ff9500] text-slate-800';
+                  } else if (isLocked) {
                     cellBg = 'bg-slate-100/90 border border-slate-300 hover:bg-slate-200/90 text-slate-600';
                   } else if (isEmpty) {
                     cellBg = 'bg-white hover:bg-indigo-50/40 border border-dashed border-slate-300 hover:border-indigo-400 text-slate-600 shadow-2xs';
@@ -300,10 +353,19 @@ export const WeeklyTimetable: React.FC = () => {
                   return (
                     <button
                       key={`${day.dateStr}-${time}`}
+                      id={`slot-cell-${day.dateStr}-${time}`}
                       type="button"
                       onClick={() => setSelectedSlot(slot)}
-                      className={`min-h-[72px] sm:min-h-[76px] print:min-h-0 print:h-[12.8mm] p-1.5 sm:p-2 print:p-0.5 rounded-2xl print:rounded flex flex-col justify-between text-left transition-all active:scale-98 overflow-hidden group print:overflow-hidden print:transform-none print:shadow-none print:border-slate-300 ${cellBg}`}
+                      className={`relative min-h-[72px] sm:min-h-[76px] print:min-h-0 print:h-[12.8mm] p-1.5 sm:p-2 print:p-0.5 rounded-2xl print:rounded flex flex-col justify-between text-left transition-all active:scale-98 overflow-hidden group print:overflow-hidden print:transform-none print:shadow-none print:border-slate-300 ${cellBg}`}
                     >
+                      {/* 시간표 포커싱 강조 뱃지 */}
+                      {isHighlighted && (
+                        <div className="absolute top-1 right-1 z-30 flex items-center gap-0.5 bg-[#ff9500] text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-md animate-bounce pointer-events-none">
+                          <span>👈</span>
+                          <span>예약 위치</span>
+                        </div>
+                      )}
+
                       {/* 상단: 인원 카운트 및 학부모 가용성 뱃지 */}
                       <div className="flex items-center justify-between w-full mb-1 print:mb-0 leading-none">
                         <div className="flex items-center gap-1">

@@ -190,7 +190,7 @@ export const ScheduleTab: React.FC = () => {
             {myBookings.map((b) => {
               const typeBadge =
                 b.type === 'makeup'
-                  ? { label: '보강 수업 (30분)', bg: 'bg-[#ff9500]/15 text-[#ff9500] border-[#ff9500]/25' }
+                  ? { label: '보강 수업', bg: 'bg-[#ff9500]/15 text-[#ff9500] border-[#ff9500]/25' }
                   : b.type === 'special'
                   ? { label: '심화 특강 (60분)', bg: 'bg-[#0071e3]/15 text-[#0071e3] border-[#0071e3]/25' }
                   : { label: `상담 (${b.counselingType === 'in_person' ? '대면' : '전화'})`, bg: 'bg-[#34c759]/15 text-[#34c759] border-[#34c759]/25' };

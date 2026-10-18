@@ -241,3 +241,35 @@ export function formatKoreanDateTime(dateStr: string, timeStr: string): string {
   const dayName = DAY_NAMES[date.getDay() as DayOfWeek] || '';
   return `${date.getMonth() + 1}월 ${date.getDate()}일(${dayName}) ${timeStr}`;
 }
+
+// 상대 시간 표시 헬퍼 (예: "방금 전", "5분 전", "2시간 전", "10월 18일")
+export function getRelativeTime(createdAt?: string, fallback = '방금 전'): string {
+  if (!createdAt) return fallback;
+  const time = new Date(createdAt).getTime();
+  if (isNaN(time)) return fallback;
+  const now = Date.now();
+  const diffSec = Math.floor((now - time) / 1000);
+  if (diffSec < 60) return '방금 전';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}분 전`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}시간 전`;
+  const diffDay = Math.floor(diffHour / 24);
+  if (diffDay < 7) return `${diffDay}일 전`;
+  const d = new Date(time);
+  return `${d.getMonth() + 1}월 ${d.getDate()}일`;
+}
+
+// 정확한 일시 표시 헬퍼 (예: "2026.10.18 20:40")
+export function formatFullDateTime(createdAt?: string, fallback = ''): string {
+  if (!createdAt) return fallback;
+  const d = new Date(createdAt);
+  if (isNaN(d.getTime())) return fallback;
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${year}.${month}.${day} ${hours}:${minutes}`;
+}
+

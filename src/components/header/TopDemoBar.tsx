@@ -10,6 +10,7 @@ import {
   Lock,
   KeyRound,
   Bell,
+  Download,
 } from 'lucide-react';
 import { parseDate, DAY_NAMES } from '../../utils/dateUtils';
 import { ChangePasswordModal } from '../auth/ChangePasswordModal';
@@ -37,6 +38,16 @@ export const TopDemoBar: React.FC = () => {
   } = useReservation();
 
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const standalone =
+        window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator as any).standalone === true;
+      setIsStandalone(standalone);
+    }
+  }, []);
 
   // 접속 학생 목록 가나다순(한국어 오름차순) 정렬
   const sortedStudents = useMemo(() => {
@@ -89,9 +100,6 @@ export const TopDemoBar: React.FC = () => {
               <span className="font-semibold text-sm tracking-tight text-white">
                 숙명클라라피아노
               </span>
-              <span className="inline-flex items-center text-[10px] font-semibold bg-white/10 text-white/80 border border-white/10 px-2 py-0.5 rounded-full">
-                보강 예약하기
-              </span>
             </div>
           </div>
         </div>
@@ -123,9 +131,6 @@ export const TopDemoBar: React.FC = () => {
                 <span className="font-semibold text-sm tracking-tight text-white group-hover:text-white/90 transition-colors">
                   숙명클라라피아노
                 </span>
-                <span className="hidden sm:inline-flex items-center text-[10px] font-semibold bg-white/10 text-white/80 border border-white/10 px-2 py-0.5 rounded-full">
-                  원장님 모드
-                </span>
                 {isCloudConnected ? (
                   <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#34c759] bg-[#34c759]/15 border border-[#34c759]/25 px-2 py-0.5 rounded-full" title="Supabase 실시간 클라우드 DB 연결 완료">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#34c759] animate-pulse" />
@@ -156,9 +161,6 @@ export const TopDemoBar: React.FC = () => {
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-sm tracking-tight text-white">
                   숙명클라라피아노
-                </span>
-                <span className="hidden sm:inline-flex items-center text-[10px] font-semibold bg-white/10 text-white/80 border border-white/10 px-2 py-0.5 rounded-full">
-                  보강 예약하기
                 </span>
                 {isCloudConnected ? (
                   <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#34c759] bg-[#34c759]/15 border border-[#34c759]/25 px-2 py-0.5 rounded-full" title="Supabase 실시간 클라우드 DB 연결 완료">
@@ -290,6 +292,19 @@ export const TopDemoBar: React.FC = () => {
             />
             <span className="text-white/90 font-bold">({dayName})</span>
           </div>
+
+          {/* PWA 앱 설치 버튼 (원장님 모드일 때만 표시, 학부모 모드로 진입 시 숨김 처리) */}
+          {!isStandalone && appMode === 'admin' && (
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('pianoslot:open-install-guide'))}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/[0.08] hover:bg-[#0071e3]/25 text-white/90 hover:text-white text-xs font-semibold border border-white/[0.08] transition-all cursor-pointer active:scale-95"
+              title="스마트폰/PC 바탕화면에 앱으로 설치하기"
+            >
+              <Download className="w-3.5 h-3.5 text-[#0071e3]" />
+              <span className="hidden sm:inline text-[11px] font-bold">앱 설치</span>
+            </button>
+          )}
 
           {/* 원장님 신규 보강 예약 알림 벨 & 레드 닷 배지 (Feature 3) */}
           {appMode === 'admin' && isAdminAuthenticated && (

@@ -7,6 +7,7 @@ import { AdminLockScreen } from './components/auth/AdminLockScreen';
 import { ToastContainer } from './components/common/ToastContainer';
 import { AdminLiveAlertBanner } from './components/common/AdminLiveAlertBanner';
 import { AdminNotificationModal } from './components/common/AdminNotificationModal';
+import { PwaInstallPrompt } from './components/common/PwaInstallPrompt';
 
 const AppContent: React.FC = () => {
   const { appMode, isParentDirectLink, isAdminAuthenticated } = useReservation();
@@ -17,6 +18,7 @@ const AppContent: React.FC = () => {
       <div className="min-h-screen bg-[#1d1d1f] text-white flex flex-col font-sans select-none">
         <ToastContainer />
         <AdminLockScreen />
+        <PwaInstallPrompt />
       </div>
     );
   }
@@ -28,11 +30,12 @@ const AppContent: React.FC = () => {
         <TopDemoBar />
       </div>
 
-      {/* 2. 전역 알림 토스트 & 실시간 플로팅 알림 & 부재중 예약 모달 */}
+      {/* 2. 전역 알림 토스트 & 실시간 플로팅 알림 & 부재중 예약 모달 & PWA 설치 배너 */}
       <div className="no-print">
         <ToastContainer />
         <AdminLiveAlertBanner />
         <AdminNotificationModal />
+        <PwaInstallPrompt />
       </div>
 
       {/* 3. 모드별 메인 화면 렌더링 */}
@@ -44,7 +47,7 @@ const AppContent: React.FC = () => {
       <footer className="no-print border-t border-black/[0.05] bg-white/60 backdrop-blur-md py-6 text-center text-xs text-[#86868b]">
         <p className="font-semibold text-[#1d1d1f] tracking-tight flex items-center justify-center gap-1.5">
           <img src="/logo.png" alt="숙명클라라피아노" className="w-4 h-4 object-contain inline-block" />
-          <span>숙명클라라피아노 · 스마트 예약 & 보강 관리 시스템</span>
+          <span>숙명클라라피아노 - 보강 예약하기</span>
         </p>
         <p className="text-[11px] mt-1 text-[#86868b] tracking-normal">
           Apple Human Interface Design · React · TypeScript · Tailwind CSS
